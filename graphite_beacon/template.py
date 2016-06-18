@@ -22,4 +22,11 @@ TEMPLATES = {
         'text': LOADER.load('common/message.txt'),
         'short': LOADER.load('common/short.txt'),
     },
+    'charthouse': {
+        'html': LOADER.load('graphite/message.html'),
+        'text': LOADER.load('graphite/message.txt'),
+        'short': LOADER.load('graphite/short.txt'),
+        'telegram': LOADER.load('graphite/short.txt'),
+        'slack': LOADER.load('graphite/slack.txt')
+    }
 }

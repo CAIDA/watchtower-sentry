@@ -241,7 +241,7 @@ class GraphiteAlert(BaseAlert):
         self.default_nan_value = options.get(
             'default_nan_value', self.reactor.options['default_nan_value'])
         self.ignore_nan = options.get('ignore_nan', self.reactor.options['ignore_nan'])
-        method_tokens = self.method.split(maxsplit=1)
+        method_tokens = self.method.split(' ', 1)
         assert method_tokens[0] in METHODS, "Method is invalid"
         if method_tokens[0] == 'percentile':
             try:
@@ -301,7 +301,7 @@ class GraphiteAlert(BaseAlert):
         return url
 
     def _get_record_attr(self, record):
-        method_tokens = self.method.split()
+        method_tokens = self.method.split(' ', 1)
         if method_tokens[0] == 'percentile':
             return record.percentile(float(method_tokens[1]))
         else:
@@ -309,6 +309,8 @@ class GraphiteAlert(BaseAlert):
 
 
 class CharthouseAlert(GraphiteAlert):
+
+    source = 'charthouse'
 
     def get_graph_url(self, target, charthouse_url=None):
         """Get Charthouse URL."""
@@ -319,7 +321,7 @@ class CharthouseAlert(GraphiteAlert):
         query = escape.url_escape(query)
         charthouse_url = charthouse_url or self.reactor.options.get('public_charthouse_url')
 
-        url = "{base}/explorer?expression={query}&from=-{time_window}&until=-{until}".format(
+        url = "{base}/explorer?expression={query}#from=-{time_window}&until=-{until}".format(
             base=charthouse_url, query=query, time_window=self.time_window, until=self.until)
         return url
 
