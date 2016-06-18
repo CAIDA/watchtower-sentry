@@ -75,9 +75,6 @@ class Reactor(object):
         if not self.options['public_graphite_url']:
             self.options['public_graphite_url'] = self.options['graphite_url']
 
-        if not self.options['public_charthouse_url']:
-            self.options['public_charthouse_url'] = self.options['charthouse_url']
-
         LOGGER.setLevel(_get_numeric_log_level(self.options.get('logging', 'info')))
         registry.clean()
 

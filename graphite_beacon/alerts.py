@@ -319,9 +319,9 @@ class CharthouseAlert(GraphiteAlert):
     def _charthouse_url(self, query, charthouse_url=None):
         """Build Charthouse URL."""
         query = escape.url_escape(query)
-        charthouse_url = charthouse_url or self.reactor.options.get('public_charthouse_url')
+        charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
 
-        url = "{base}/explorer?expression={query}#from=-{time_window}&until=-{until}".format(
+        url = "{base}/explorer#expression={query}&from=-{time_window}&until=-{until}".format(
             base=charthouse_url, query=query, time_window=self.time_window, until=self.until)
         return url
 
