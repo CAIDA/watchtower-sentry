@@ -32,6 +32,7 @@ class Reactor(object):
         'debug': False,
         'format': 'short',
         'graphite_url': 'http://localhost',
+        'charthouse_url': 'http://localhost',
         'history_size': '1day',
         'interval': '10minute',
         'logging': 'info',
@@ -41,6 +42,7 @@ class Reactor(object):
         'pidfile': None,
         'prefix': '[BEACON]',
         'public_graphite_url': None,
+        'public_charthouse_url': None,
         'repeat_interval': '2hour',
         'request_timeout': 20.0,
         'connect_timeout': 20.0,
@@ -72,6 +74,9 @@ class Reactor(object):
 
         if not self.options['public_graphite_url']:
             self.options['public_graphite_url'] = self.options['graphite_url']
+
+        if not self.options['public_charthouse_url']:
+            self.options['public_charthouse_url'] = self.options['charthouse_url']
 
         LOGGER.setLevel(_get_numeric_log_level(self.options.get('logging', 'info')))
         registry.clean()

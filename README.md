@@ -219,8 +219,8 @@ Currently two types of alerts are supported:
       // (required) Alert query
       "query": "*.memory.memory-free",
 
-      // (optional) Alert type (graphite, url)
-      "source": "graphite",
+      // (optional) Alert type (charthouse, graphite, url)
+      "source": "charthouse",
 
       // (optional) Default values format (none, bytes, s, ms, short)
       "format": "bytes",

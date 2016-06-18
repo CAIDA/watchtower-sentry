@@ -53,7 +53,7 @@ class AlertFabric(type):
             LOGGER.info('Register Alert: %s', source)
         return cls
 
-    def get(cls, reactor, source='graphite', **options):
+    def get(cls, reactor, source='charthouse', **options):
         """Get Alert Class by source."""
         acls = cls.alerts[source]
         return acls(reactor, **options)
@@ -306,6 +306,22 @@ class GraphiteAlert(BaseAlert):
             return record.percentile(float(method_tokens[1]))
         else:
             return getattr(record, self.method)
+
+
+class CharthouseAlert(GraphiteAlert):
+
+    def get_graph_url(self, target, charthouse_url=None):
+        """Get Charthouse URL."""
+        return self._charthouse_url(target, charthouse_url=charthouse_url)
+
+    def _charthouse_url(self, query, charthouse_url=None):
+        """Build Charthouse URL."""
+        query = escape.url_escape(query)
+        charthouse_url = charthouse_url or self.reactor.options.get('public_charthouse_url')
+
+        url = "{base}/explorer?expression={query}&from=-{time_window}&until=-{until}".format(
+            base=charthouse_url, query=query, time_window=self.time_window, until=self.until)
+        return url
 
 
 class URLAlert(BaseAlert):
