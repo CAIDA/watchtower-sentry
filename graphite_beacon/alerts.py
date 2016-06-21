@@ -277,9 +277,13 @@ class GraphiteAlert(BaseAlert):
                     (None if record.empty else self._get_record_attr(record), record.target)
                     for record in records]
                 if len(data) == 0:
-                    raise ValueError('No data')
-                self.check(data)
-                self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+                    self.notify(self.loading_error, 
+                                'Loading error: Server returned an empty response',
+                                target='loading',
+                                ntype='emptyresp')
+                else:
+                    self.check(data)
+                    self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
             except Exception as e:
                 self.notify(
                     self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
@@ -312,13 +316,13 @@ class CharthouseAlert(GraphiteAlert):
 
     source = 'charthouse'
 
-    def get_graph_url(self, target, charthouse_url=None):
+    def get_graph_url(self, target=None, charthouse_url=None):
         """Get Charthouse URL."""
         return self._charthouse_url(target, charthouse_url=charthouse_url)
 
-    def _charthouse_url(self, query, charthouse_url=None):
+    def _charthouse_url(self, query=None, charthouse_url=None):
         """Build Charthouse URL."""
-        query = escape.url_escape(query)
+        query = escape.url_escape(query or self.query)
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
 
         url = "{base}/explorer#expression={query}&from=-{time_window}&until=-{until}".format(

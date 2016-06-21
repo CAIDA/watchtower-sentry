@@ -28,5 +28,11 @@ TEMPLATES = {
         'short': LOADER.load('graphite/short.txt'),
         'telegram': LOADER.load('graphite/short.txt'),
         'slack': LOADER.load('graphite/slack.txt')
+    },
+    'emptyresp': {
+        'html': LOADER.load('error/message.html'),
+        'text': LOADER.load('error/message.txt'),
+        'short': LOADER.load('common/short.txt'),
     }
 }
+

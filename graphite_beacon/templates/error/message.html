@@ -1,0 +1,42 @@
+{% extends "../base.html" %}
+
+{% block content1 %}                                                
+<table border="0" cellpadding="0" cellspacing="0" width="100%">
+    <tr>
+        <td valign="top" align="right" class="textContent">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                    <td align="center" valign="top" class="status_{{level}}">
+                        {{ level.upper() }} [{{alert.name}}]
+                        {% if target %} - {{ target }} {% end %}
+                    </td>
+                </tr>
+                <tr>
+                    <td align="center" valign="top" class="status_{{level}}">
+                        {{ alert.convert(value) }}
+                    </td>
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+</table>
+{% end %}
+
+{% block content2 %}
+<table border="0" cellpadding="0" cellspacing="0" width="100%">
+    <tr>
+        <td align="center" valign="top" class="textContent lengthyText">
+
+            <b>Time:</b> {{ dt.datetime.now().strftime('%H:%M %d/%m/%Y') }} <br/>
+
+            <b>Query:</b> {{ alert.query }} <br/>
+
+            <b>Query Url:</b> {{ alert.url }} <br/>
+
+            <b>Charthouse Url:</b> {{ alert.get_graph_url() }} <br/>
+
+        </td>
+    </tr>
+</table>
+{% end %}

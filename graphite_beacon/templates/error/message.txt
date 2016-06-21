@@ -1,0 +1,12 @@
+{{ reactor.options.get('prefix') }} {{ level.upper() }}
+{{ '=' * len(reactor.options.get('prefix') + level)}}
+
+Alert: {{ alert.name }}
+Status: {{ level }}
+
+Time: {{ dt.datetime.now().strftime('%H:%M %d/%m/%Y') }}
+Url: {{ alert.url }}
+Query: {{ alert.query }}
+Query Url: {{ alert.url }}
+Charthouse Url: {{ alert.get_graph_url() }}
+
