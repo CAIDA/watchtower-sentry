@@ -1,3 +1,4 @@
+
 from tornado import log
 
 from graphite_beacon import _compat as _
@@ -66,3 +67,5 @@ from .cli import CliHandler              # noqa
 from .opsgenie import OpsgenieHandler    # noqa
 from .victorops import VictorOpsHandler  # noqa
 from .telegram import TelegramHandler    # noqa
+from .database import DatabaseHandler    # noqa
+
