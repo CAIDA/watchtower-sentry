@@ -174,8 +174,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
                     break
             else:
                 self.notify('normal', value, target, rule=rule)
-
-            self.history[target].append(value)
+                self.history[target].append(value)
 
     def evaluate_rule(self, rule, value, target):
         """Calculate the value."""

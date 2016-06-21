@@ -17,9 +17,11 @@ class GraphiteRecord(object):
     def _values(self, values):
         for value in values:
             try:
-                if self.ignore_nan and float(value) == self.default_nan_value:
-                    continue
-                yield float(value)
+                if value == str(self.default_nan_value):
+                    if not self.ignore_nan:
+                        yield 0.0
+                else:
+                    yield float(value)
             except ValueError:
                 continue
 
@@ -54,3 +56,4 @@ class GraphiteRecord(object):
         k = len(values) * rank / 100.0
         floor_k = int(k)
         return (floor_k + 1 - k) * values[floor_k] + (k - floor_k) * values[floor_k + 1]
+
