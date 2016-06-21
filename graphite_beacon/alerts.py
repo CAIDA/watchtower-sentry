@@ -171,6 +171,8 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
             for rule in self.rules:
                 if self.evaluate_rule(rule, value, target):
                     self.notify(rule['level'], value, target, rule=rule)
+                    if not self.options['ignore_alerted_history']:
+                        self.history[target].append(value)
                     break
             else:
                 self.notify('normal', value, target, rule=rule)
@@ -276,7 +278,7 @@ class GraphiteAlert(BaseAlert):
                     (None if record.empty else self._get_record_attr(record), record.target)
                     for record in records]
                 if len(data) == 0:
-                    self.notify(self.loading_error, 
+                    self.notify(self.loading_error,
                                 'Loading error: Server returned an empty response',
                                 target='loading',
                                 ntype='emptyresp')
