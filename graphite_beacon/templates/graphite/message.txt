@@ -18,7 +18,7 @@ History: {{ [ alert.convert(v) for v in alert.history[target][:100] ] }} {% end 
 <b>Tested value:</b> {{ alert.convert(alert.get_value_for_expr(expr, target)) }}</b> <br/>
 {% end %}{% end %}
 
-View the graph: {{ alert.get_graph_url(alert.query) }}
+View the graph: {{ alert.get_graph_url(target if target else alert.query) }}
 
 --
 
