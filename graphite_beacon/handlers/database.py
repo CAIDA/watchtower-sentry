@@ -65,9 +65,10 @@ class DatabaseHandler(AbstractHandler):
     def _record(self, level, alert, value, target=None, ntype=None, rule=None):
         with self.engine.connect() as conn:
             if target != 'loading':
+                cond = rule['raw'].split(': ')[1]
                 ins = t_violation.insert().values(method=alert.method,
                                                   target=target,
-                                                  rule=rule['raw'],
+                                                  rule=cond,
                                                   value=value)
                 result = conn.execute(ins)
                 [violation_id] = result.inserted_primary_key
