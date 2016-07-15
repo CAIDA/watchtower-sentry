@@ -1,7 +1,8 @@
 from os.path import expanduser
 from datetime import datetime
-from sqlalchemy import (MetaData, Table, Column, ForeignKey,
-                        Integer, String, DateTime,
+from sqlalchemy import (MetaData, Table, Column,
+                        Integer, String, DateTime, Float,
+                        ForeignKey, Sequence,
                         create_engine)
 from sqlalchemy.engine.url import URL
 from graphite_beacon.handlers import AbstractHandler, LOGGER
@@ -9,19 +10,22 @@ from graphite_beacon.handlers import AbstractHandler, LOGGER
 
 meta = MetaData()
 t_violation = Table('watchtower_violation', meta,
-                    Column('id', Integer, primary_key=True),
+                    Column('id', Integer, Sequence(
+                        'violation_id_seq'), primary_key=True),
                     # the actual query if * is used
                     Column('target', String, nullable=False),
                     Column('method', String, nullable=False),
                     Column('rule', String, nullable=False),
                     # value that violates the rule
-                    Column('value', String, nullable=False))
+                    Column('value', Float, nullable=False))
 t = Table('watchtower_alert', meta,
-          Column('id', Integer, primary_key=True),
+          Column('id', Integer, Sequence('alert_id_seq'), primary_key=True),
           Column('name', String, nullable=False),
           Column('time', DateTime, nullable=False),
           Column('level', String, nullable=False),
           Column('query', String, nullable=False),
+          Column('type', String, nullable=False),
+          Column('description', String, nullable=False),
           Column('violation_id', Integer, ForeignKey(t_violation.c.id)))
 
 
@@ -41,12 +45,8 @@ class DatabaseHandler(AbstractHandler):
     }
 
     def init_handler(self):
-        engine_options = map(self.options.get, ('drivername',
-                                                'username',
-                                                'password',
-                                                'host',
-                                                'port',
-                                                'databasename'))
+        engine_options = [self.options[n] for n in (
+            'drivername', 'username', 'password', 'host', 'port', 'databasename')]
         host = expanduser(engine_options[3])
         if 'sqlite' in engine_options[0] and host:
             host = '/' + host
@@ -64,20 +64,24 @@ class DatabaseHandler(AbstractHandler):
 
     def _record(self, level, alert, value, target=None, ntype=None, rule=None):
         with self.engine.connect() as conn:
-            if target != 'loading':
-                cond = rule['raw'].split(': ')[1]
+            if ntype == alert.source:
+                cond = rule['raw'].split(':')[-1].strip()
                 ins = t_violation.insert().values(method=alert.method,
                                                   target=target,
                                                   rule=cond,
-                                                  value=value)
+                                                  value=float(value))
                 result = conn.execute(ins)
                 [violation_id] = result.inserted_primary_key
+                desc = 'Rule violated'
             else:
                 violation_id = None
+                desc = value
 
             ins = t.insert().values(name=alert.name,
                                     time=datetime.now(),
                                     level=level,
                                     query=alert.query,
+                                    type=ntype,
+                                    description=desc,
                                     violation_id=violation_id)
             conn.execute(ins)
