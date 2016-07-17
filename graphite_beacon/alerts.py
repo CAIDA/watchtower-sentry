@@ -15,6 +15,7 @@ from .utils import (
 import math
 from collections import deque, defaultdict
 from itertools import islice
+from datetime import datetime, timedelta
 
 
 LOGGER = log.gen_log
@@ -325,9 +326,16 @@ class CharthouseAlert(GraphiteAlert):
         """Build Charthouse URL."""
         query = escape.url_escape(query or self.query)
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
+        
+        # Show a span of extra 6 hours around the window, centered
+        # Must use timestamp with from & until instead of relative time in emails
+        now = datetime.now().timestamp()
+        def_window = timedelta(hours=6).total_seconds()
+        since = int(now - parse_interval(self.time_window) - def_window)
+        until = int(now - parse_interval(self.until) + def_window)
 
-        url = "{base}/explorer#expression={query}&from=-{time_window}&until=-{until}".format(
-            base=charthouse_url, query=query, time_window=self.time_window, until=self.until)
+        url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
+            base=charthouse_url, query=query, since=since, until=until)
         return url
 
 
