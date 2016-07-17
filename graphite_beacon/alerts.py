@@ -16,6 +16,7 @@ import math
 from collections import deque, defaultdict
 from itertools import islice
 from datetime import datetime, timedelta
+from time import mktime
 
 
 LOGGER = log.gen_log
@@ -328,11 +329,12 @@ class CharthouseAlert(GraphiteAlert):
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
         
         # Show a span of extra 12 hours around the window, centered
+        # Make width of span configurable?
         # Must use timestamp with from & until instead of relative time in emails
-        now = datetime.now().timestamp()
-        def_window = timedelta(hours=6).total_seconds()
-        since = int(now - parse_interval(self.time_window) - def_window)
-        until = int(now - parse_interval(self.until) + def_window)
+        now = mktime(datetime.now().timetuple())
+        defualt_window = timedelta(hours=6).total_seconds()
+        since = int(now - parse_interval(self.time_window) / 1e3 - defualt_window)
+        until = int(now - parse_interval(self.until) / 1e3 + defualt_window)
 
         url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
             base=charthouse_url, query=query, since=since, until=until)
