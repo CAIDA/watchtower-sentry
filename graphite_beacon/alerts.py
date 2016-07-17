@@ -327,7 +327,7 @@ class CharthouseAlert(GraphiteAlert):
         query = escape.url_escape(query or self.query)
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
         
-        # Show a span of extra 6 hours around the window, centered
+        # Show a span of extra 12 hours around the window, centered
         # Must use timestamp with from & until instead of relative time in emails
         now = datetime.now().timestamp()
         def_window = timedelta(hours=6).total_seconds()

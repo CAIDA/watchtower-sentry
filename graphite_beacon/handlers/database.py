@@ -16,7 +16,7 @@ t_violation = Table('watchtower_violation', meta,
                     Column('target', String, nullable=False),
                     Column('method', String, nullable=False),
                     Column('rule', String, nullable=False),
-                    # value that violates the rule
+                    # value that violates the rule. Even bgp has fraction
                     Column('value', Float, nullable=False))
 t = Table('watchtower_alert', meta,
           Column('id', Integer, Sequence('alert_id_seq'), primary_key=True),
@@ -24,6 +24,8 @@ t = Table('watchtower_alert', meta,
           Column('time', DateTime, nullable=False),
           Column('level', String, nullable=False),
           Column('query', String, nullable=False),
+          # Source of the alert (e.g. charthouse)
+          # or type of internal error (e.g. loading)
           Column('type', String, nullable=False),
           Column('description', String, nullable=False),
           Column('violation_id', Integer, ForeignKey(t_violation.c.id)))
@@ -73,6 +75,8 @@ class DatabaseHandler(AbstractHandler):
                 result = conn.execute(ins)
                 [violation_id] = result.inserted_primary_key
                 desc = 'Rule violated'
+            elif ntype is None:
+                ntype = 'Unknown'
             else:
                 violation_id = None
                 desc = value
