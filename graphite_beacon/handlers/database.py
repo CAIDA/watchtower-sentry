@@ -82,7 +82,7 @@ class DatabaseHandler(AbstractHandler):
                 desc = value
 
             ins = t.insert().values(name=alert.name,
-                                    time=datetime.now(),
+                                    time=datetime.utcnow(),
                                     level=level,
                                     query=alert.query,
                                     type=ntype,
