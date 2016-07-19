@@ -1,5 +1,4 @@
 from os.path import expanduser
-from datetime import datetime
 from sqlalchemy import (MetaData, Table, Column,
                         Integer, String, DateTime, Float,
                         ForeignKey, Sequence,
@@ -82,7 +81,7 @@ class DatabaseHandler(AbstractHandler):
                 desc = value
 
             ins = t.insert().values(name=alert.name,
-                                    time=datetime.utcnow(),
+                                    time=alert.get_utcnow_with_offset(),
                                     level=level,
                                     query=alert.query,
                                     type=ntype,

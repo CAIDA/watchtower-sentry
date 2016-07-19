@@ -4,7 +4,7 @@
 Alert: {{ alert.name }}
 Status: {{ level }}
 
-Time: {{ dt.datetime.utcnow().strftime('%H:%M %d/%m/%Y') + ' UTC' }}
+Time: {{ alert.get_utcnow_with_offset().strftime('%H:%M %d/%m/%Y UTC') }}
 Value: {{ alert.convert(value) }} ({{value}})
 Method: {{ alert.method }}
 Query: {{ alert.query }}
@@ -16,7 +16,7 @@ Rule: {{ rule['raw'] }}
 Tested value: {{ alert.convert(alert.get_value_for_expr(expr, target)) }} {% end %}
 {% end %}
 {% if alert.history[target] %}
-History: {{ [ alert.convert(v) for v in alert.history[target][:100] ] }} {% end %}
+History: {{ [ alert.convert(v) for v in alert.history[target][-100:] ] }} {% end %}
 {% end %}
 
 View the graph: {{ alert.get_graph_url(target if target else alert.query) }}

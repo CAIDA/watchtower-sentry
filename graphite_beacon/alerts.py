@@ -166,7 +166,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
     def check(self, records):
         """Check current value."""
         for value, target in records:
-            LOGGER.info("%s [%s]: %s", self.name, target, value)
+            LOGGER.debug("%s [%s]: %s", self.name, target, value)
             if value is None:
                 self.notify(self.no_data, value, target)
                 continue
@@ -224,6 +224,11 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
         self.state[target] = level
         return self.reactor.notify(level, self, value, target=target, ntype=ntype, rule=rule)
+
+    def get_utcnow_with_offset(self):
+         now = datetime.utcnow()
+         now -= timedelta(milliseconds=parse_interval(self.time_window))
+         return now
 
     def load(self):
         """Load from remote."""

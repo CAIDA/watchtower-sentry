@@ -28,7 +28,7 @@
     <tr>
         <td align="center" valign="top" class="textContent">
 
-            <b>Time:</b> {{ dt.datetime.utcnow().strftime('%H:%M %d/%m/%Y') + ' UTC' }}</b> <br/>
+            <b>Time:</b> {{ alert.get_utcnow_with_offset().strftime('%H:%M %d/%m/%Y UTC') }}</b> <br/>
 
             <b>Method:</b> {{ alert.method }}</b> <br/>
 
@@ -46,7 +46,7 @@
             {% end %}
 
             {% if alert.history[target] %}
-            <b>History:</b> {{ [ alert.convert(v) for v in alert.history[target][:100] ] }} <br/> {% end %}
+            <b>History:</b> {{ [ alert.convert(v) for v in alert.history[target][-100:] ] }} <br/> {% end %}
 
             {% end %}
         </td>
