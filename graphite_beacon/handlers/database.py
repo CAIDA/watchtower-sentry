@@ -65,20 +65,30 @@ class DatabaseHandler(AbstractHandler):
 
     def _record(self, level, alert, value, target=None, ntype=None, rule=None):
         with self.engine.connect() as conn:
+
             if ntype == alert.source:
-                cond = rule['raw'].split(':')[-1].strip()
+                # A rule was violated
+                if value is None:
+                    # rule is None at this time, because whatever rule would
+                    # be violated when value is None
+                    cond = None
+                    desc = 'No value loaded'
+                else: 
+                    cond = rule['raw'].split(':')[-1].strip()
+                    desc = 'Rule violated'
                 ins = t_violation.insert().values(method=alert.method,
                                                   target=target,
                                                   rule=cond,
                                                   value=float(value))
                 result = conn.execute(ins)
                 [violation_id] = result.inserted_primary_key
-                desc = 'Rule violated'
-            elif ntype is None:
-                ntype = 'Unknown'
             else:
-                violation_id = None
+                # Usually internal error
+                if ntype is None:
+                    # Don't know when would this happen. Just in case
+                    ntype = 'Unknown'
                 desc = value
+                violation_id = None
 
             ins = t.insert().values(name=alert.name,
                                     time=alert.get_utcnow_with_offset(),

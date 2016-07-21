@@ -46,7 +46,7 @@
             {% end %}
 
             {% if alert.history[target] %}
-            <b>History:</b> {{ [ alert.convert(v) for v in alert.history[target][-100:] ] }} <br/> {% end %}
+            <b>History:</b> {{ [ alert.convert(v) for v in alert.history[target][:100] ] }} <br/> {% end %}
 
             {% end %}
         </td>
