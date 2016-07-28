@@ -28,7 +28,7 @@
     <tr>
         <td align="center" valign="top" class="textContent">
 
-            <b>Time:</b> {{ alert.get_utcnow_with_offset().strftime('%H:%M %d/%m/%Y UTC') }}</b> <br/>
+            <b>Time:</b> {{ '{dt:%b} {dt.month}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=alert.get_utcnow_with_offset()).lower().capitalize() }}</b> <br/>
 
             <b>Method:</b> {{ alert.method }}</b> <br/>
 
