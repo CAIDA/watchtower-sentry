@@ -22,7 +22,7 @@ t = Table('watchtower_alert', meta,
           Column('name', String, nullable=False),
           Column('time', DateTime, nullable=False),
           Column('level', String, nullable=False),
-          Column('query', String, nullable=False),
+          Column('expression', String, nullable=False),
           # Source of the alert (e.g. charthouse)
           # or type of internal error (e.g. loading)
           Column('type', String, nullable=False),
@@ -73,6 +73,7 @@ class DatabaseHandler(AbstractHandler):
                     # be violated when value is None
                     cond = None
                     desc = 'No value loaded'
+                    value = 0.0
                 else: 
                     cond = rule['raw'].split(':')[-1].strip()
                     desc = 'Rule violated'
@@ -93,7 +94,7 @@ class DatabaseHandler(AbstractHandler):
             ins = t.insert().values(name=alert.name,
                                     time=alert.get_utcnow_with_offset(),
                                     level=level,
-                                    query=alert.query,
+                                    expression=alert.query,
                                     type=ntype,
                                     description=desc,
                                     violation_id=violation_id)
