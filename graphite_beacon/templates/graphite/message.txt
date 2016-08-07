@@ -4,7 +4,7 @@
 Alert: {{ alert.name }}
 Status: {{ level }}
 
-Time: {{ '{dt:%b} {dt.month}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=alert.get_utcnow_with_offset()).lower().capitalize() }}
+Time: {{ '{dt:%b} {dt.day}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=alert.get_utcnow_with_offset()).lower().capitalize() + ' UTC'}}
 Value: {{ alert.convert(value) }} ({{value}})
 Method: {{ alert.method }}
 Query: {{ alert.query }}
@@ -13,7 +13,7 @@ Target: {{ target }}
 {% if rule %}
 Rule: {{ rule['raw'] }}
 {% for expr in filter(lambda x: isinstance(x, dict), rule['exprs']) %}
-Tested value: {{ alert.convert(alert.get_value_for_expr(expr, target)) }} {% end %}
+Tested history value: {{ alert.convert(alert.get_value_for_expr(expr, target)) }} {% end %}
 {% end %}
 {% if alert.history[target] %}
 History: {{ [ alert.convert(v) for v in alert.history[target][:100] ] }} {% end %}

@@ -28,7 +28,7 @@
     <tr>
         <td align="center" valign="top" class="textContent">
 
-            <b>Time:</b> {{ '{dt:%b} {dt.month}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=alert.get_utcnow_with_offset()).lower().capitalize() }}</b> <br/>
+            <b>Time:</b> {{ '{dt:%b} {dt.day}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=alert.get_utcnow_with_offset()).lower().capitalize() + ' UTC'}}</b> <br/>
 
             <b>Method:</b> {{ alert.method }}</b> <br/>
 
@@ -41,7 +41,7 @@
             <b>Rule:</b> {{ rule['raw'] }}</b> <br/>
 
             {% for expr in filter(lambda x: isinstance(x, dict), rule['exprs']) %}
-            <b>Tested value:</b> {{ alert.convert(alert.get_value_for_expr(expr, target)) }}</b> <br/> {% end %}
+            <b>Tested history value:</b> {{ alert.convert(alert.get_value_for_expr(expr, target)) }}</b> <br/> {% end %}
 
             {% end %}
 
