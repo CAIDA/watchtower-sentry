@@ -70,3 +70,5 @@ target/
 /.tox
 
 run.py
+
+sftp-config.json
