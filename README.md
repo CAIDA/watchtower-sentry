@@ -107,7 +107,7 @@ The default options are:
         // Default prefix (used for notifications)
         "prefix": "[BEACON]",
 
-        // Default handlers (log, smtp, hipchat, http, slack, pagerduty)
+        // Default handlers (log, smtp)
         "critical_handlers": ["log", "smtp"],
         "warning_handlers": ["log", "smtp"],
         "normal_handlers": ["log", "smtp"],

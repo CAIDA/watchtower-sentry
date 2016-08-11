@@ -65,15 +65,7 @@ class AbstractHandler(_.with_metaclass(HandlerMeta)):
 
 registry = HandlerMeta
 
-from .hipchat import HipChatHandler      # noqa
-from .http import HttpHandler            # noqa
 from .log import LogHandler              # noqa
-from .pagerduty import PagerdutyHandler  # noqa
-from .slack import SlackHandler          # noqa
 from .smtp import SMTPHandler            # noqa
-from .cli import CliHandler              # noqa
-from .opsgenie import OpsgenieHandler    # noqa
-from .victorops import VictorOpsHandler  # noqa
-from .telegram import TelegramHandler    # noqa
 from .database import DatabaseHandler    # noqa
 
