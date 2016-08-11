@@ -98,7 +98,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         """String representation."""
         return "%s (%s)" % (self.name, self.interval)
 
-    def configure(self, name=None, rules=None, query=None, **options):
+    def configure(self, name=None, rules=None, queries=None, **options):
         """Configure the alert."""
         self.name = name
         if not name:
@@ -109,8 +109,9 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         self.rules = [parse_rule(rule) for rule in rules]
         self.rules = list(sorted(self.rules, key=lambda r: LEVELS.get(r.get('level'), 99)))
 
-        assert query, "%s: Alert's query is invalid" % self.name
-        self.query = query
+        assert queries and all(queries), "%s: Alert's queries are invalid" % self.name
+        self.queries = queries
+        self.current_query = None
 
         self.interval = interval_to_graphite(
             options.get('interval', self.reactor.options['interval']))
@@ -287,38 +288,45 @@ class GraphiteAlert(BaseAlert):
         self.auth_username = self.reactor.options.get('auth_username')
         self.auth_password = self.reactor.options.get('auth_password')
 
-        self.url = self._graphite_url(
-            self.query, graphite_url=self.reactor.options.get('graphite_url'), raw_data=True)
-        LOGGER.debug('%s: url = %s', self.name, self.url)
+        self.urls = [self._graphite_url(
+            query, graphite_url=self.reactor.options.get('graphite_url'), raw_data=True)
+        for query in self.queries]
+        self.current_url = None
+        LOGGER.debug('%s: urls = %s', self.name, self.urls)
 
     @gen.coroutine
     def load(self):
         """Load data from Graphite."""
-        LOGGER.debug('%s: start checking: %s', self.name, self.query)
         if self.waiting:
             self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
         else:
             self.waiting = True
-            try:
-                response = yield self.client.fetch(self.url, auth_username=self.auth_username,
-                                                   auth_password=self.auth_password,
-                                                   request_timeout=self.request_timeout,
-                                                   connect_timeout=self.connect_timeout)
-                records = [
-                    GraphiteRecord(line.decode('utf-8'), self.default_nan_value, self.ignore_nan)
-                    for line in response.buffer]
-                if len(records) == 0:
-                    self.notify(self.loading_error,
-                                'Loading error: Server returned an empty response',
-                                target='loading',
-                                ntype='emptyresp')
-                else:
-                    self.check(records)
-                    self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
-            except Exception as e:
-                LOGGER.exception()
-                self.notify(
-                    self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
+
+            for query, url in zip(self.queries, self.urls):
+                self.current_query = query
+                self.current_url = url
+                LOGGER.debug('%s: start checking: %s', self.name, query)
+                try:
+                    response = yield self.client.fetch(url, auth_username=self.auth_username,
+                                                       auth_password=self.auth_password,
+                                                       request_timeout=self.request_timeout,
+                                                       connect_timeout=self.connect_timeout)
+                    records = [
+                        GraphiteRecord(line.decode('utf-8'), self.default_nan_value, self.ignore_nan)
+                        for line in response.buffer]
+                    if len(records) == 0:
+                        self.notify(self.loading_error,
+                                    'Loading error: Server returned an empty response',
+                                    target='loading',
+                                    ntype='emptyresp')
+                    else:
+                        self.check(records)
+                        self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+                except Exception as e:
+                    LOGGER.exception()
+                    self.notify(
+                        self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
+
             self.waiting = False
 
     def get_graph_url(self, target, graphite_url=None):
@@ -357,7 +365,7 @@ class CharthouseAlert(GraphiteAlert):
 
     def _charthouse_url(self, query=None, charthouse_url=None):
         """Build Charthouse URL."""
-        query = escape.url_escape(query or self.query)
+        query = escape.url_escape(query or self.current_query)
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
         
         # Show a span of extra 12 hours around the window, centered
@@ -373,35 +381,36 @@ class CharthouseAlert(GraphiteAlert):
         return url
 
 
-class URLAlert(BaseAlert):
+# Does not support queries now
+# class URLAlert(BaseAlert):
 
-    """Check URLs."""
+#     """Check URLs."""
 
-    source = 'url'
+#     source = 'url'
 
-    @staticmethod
-    def get_data(response):
-        """Value is response.status."""
-        return response.code
+#     @staticmethod
+#     def get_data(response):
+#         """Value is response.status."""
+#         return response.code
 
-    @gen.coroutine
-    def load(self):
-        """Load URL."""
-        LOGGER.debug('%s: start checking: %s', self.name, self.query)
-        if self.waiting:
-            self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
-        else:
-            self.waiting = True
-            try:
-                response = yield self.client.fetch(
-                    self.query, method=self.options.get('method', 'GET'),
-                    request_timeout=self.request_timeout,
-                    connect_timeout=self.connect_timeout,
-                    validate_cert=self.options.get('validate_cert', True))
-                self.check([(self.get_data(response), self.query)])
-                self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+#     @gen.coroutine
+#     def load(self):
+#         """Load URL."""
+#         LOGGER.debug('%s: start checking: %s', self.name, self.query)
+#         if self.waiting:
+#             self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
+#         else:
+#             self.waiting = True
+#             try:
+#                 response = yield self.client.fetch(
+#                     self.query, method=self.options.get('method', 'GET'),
+#                     request_timeout=self.request_timeout,
+#                     connect_timeout=self.connect_timeout,
+#                     validate_cert=self.options.get('validate_cert', True))
+#                 self.check([(self.get_data(response), self.query)])
+#                 self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
 
-            except Exception as e:
-                self.notify('critical', str(e), target='loading', ntype='common')
+#             except Exception as e:
+#                 self.notify('critical', str(e), target='loading', ntype='common')
 
-            self.waiting = False
+#             self.waiting = False
