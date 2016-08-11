@@ -1,3 +1,5 @@
+from datetime import datetime
+
 class GraphiteRecord(object):
 
     def __init__(self, metric_string, default_nan_value=None, ignore_nan=False):
@@ -24,6 +26,9 @@ class GraphiteRecord(object):
                     yield float(value)
             except ValueError:
                 continue
+
+    def get_end_time(self):
+        return datetime.utcfromtimestamp(self.end_time)
 
     @property
     def average(self):

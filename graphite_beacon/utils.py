@@ -150,3 +150,18 @@ def parse_rule(rule):
         result['exprs'].extend([logical_operator, _parse_expr(expr)])
 
     return result
+
+
+def break_dot_html(expr):
+    return expr.replace('.', '.<wbr>')
+
+
+def format_time(dt):
+    txt = '{dt:%b} {dt.day}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=dt)
+    txt = txt.lower().capitalize() + ' UTC'
+    return txt
+
+
+def extract_condition(rule):
+    return rule['raw'].split(':')[-1].strip() if rule else None
+    
