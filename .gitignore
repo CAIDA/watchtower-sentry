@@ -74,4 +74,5 @@ sftp-config.json
 # Virtualenv files
 bin/
 include/
+pip-selfcheck.json
 
