@@ -48,12 +48,20 @@ class AbstractHandler(_.with_metaclass(HandlerMeta)):
         return tmpl.generate(
             level=level, reactor=self.reactor, alert=alert, value=value, target=target).strip()
 
+    def get_short_batch(self, level, alert, ntype):
+        tmpl = TEMPLATES[ntype]['short-batch']
+        return tmpl.generate(level=level, reactor=self.reactor, alert=alert).strip()
+
     def init_handler(self):
         """ Init configuration here."""
         raise NotImplementedError()
 
     def notify(self, level, alert, value, target=None, ntype=None, rule=None):
         raise NotImplementedError()
+
+    def notify_batch(self, level, alert, ntype, data):
+        raise NotImplementedError()
+
 
 registry = HandlerMeta
 

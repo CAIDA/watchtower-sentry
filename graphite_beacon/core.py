@@ -111,6 +111,7 @@ class Reactor(object):
 
     def reinit_handlers(self, level='warning'):
         for name in self.options['%s_handlers' % level]:
+            assert name in ('log', 'smtp', 'database'), 'Unsupported handler' # TODO log
             try:
                 self.handlers[level].add(registry.get(self, name))
             except Exception as e:
@@ -146,6 +147,12 @@ class Reactor(object):
 
         for handler in self.handlers.get(level, []):
             handler.notify(level, alert, value, target=target, ntype=ntype, rule=rule)
+
+    def notify_batch(self, level, alert, data):
+        LOGGER.info('Notify %s:%s:%s entries', level, alert, len(data))
+
+        for handler in self.handlers.get(level, []):
+            handler.notify_batch(level, alert, alert.source, data)
 
 _LOG_LEVELS = {
     'DEBUG': logging.DEBUG,

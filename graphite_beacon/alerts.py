@@ -11,6 +11,7 @@ from .utils import (
     interval_to_graphite,
     parse_interval,
     parse_rule,
+    format_time,
 )
 import math
 from collections import deque, defaultdict
@@ -165,20 +166,29 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
     def check(self, records):
         """Check current value."""
-        for value, target in records:
-            LOGGER.debug("%s [%s]: %s", self.name, target, value)
+        nones, normals = [], []
+        violations = {}
+
+        for r in records:
+            value = self._get_record_attr(r)
+            LOGGER.debug("%s [%s]: %s", self.name, r.target, value)
             if value is None:
-                self.notify(self.no_data, value, target)
-                continue
-            for rule in self.rules:
-                if self.evaluate_rule(rule, value, target):
-                    self.notify(rule['level'], value, target, rule=rule)
-                    if not self.options['ignore_alerted_history']:
-                        self.history[target].append(value)
-                    break
+                nones.append((r, value, None))
             else:
-                self.notify('normal', value, target, rule=rule)
-                self.history[target].append(value)
+                for rule in self.rules:
+                    if self.evaluate_rule(rule, value, r.target):
+                        violations.setdefault(rule['level'], []).append((r, value, rule))
+                        if not self.options['ignore_alerted_history']:
+                            self.history[r.target].append(value)
+                        break
+                else:
+                    normals.append((r, value, None))
+                    self.history[r.target].append(value)
+
+        self.notify_batch(self.no_data, nones)
+        for level, data in violations.items():
+            self.notify_batch(level, data)
+        self.notify_batch('normal', normals)
 
     def evaluate_rule(self, rule, value, target):
         """Calculate the value."""
@@ -213,6 +223,19 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
     def notify(self, level, value, target=None, ntype=None, rule=None):
         """Notify main reactor about event."""
+        if self.check_state(level, target):
+            return self.reactor.notify(level, self, value, target=target, ntype=ntype, rule=rule)
+
+    def notify_batch(self, level, data):
+        data = list(filter(lambda d: self.check_state(level, d[0].target), data))
+
+        # Is there any entries in it?
+        if not data:
+            return False
+
+        return self.reactor.notify_batch(level, self, data)
+
+    def check_state(self, level, target):
         # Did we see the event before?
         if target in self.state and level == self.state[target]:
             return False
@@ -223,12 +246,15 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
             return False
 
         self.state[target] = level
-        return self.reactor.notify(level, self, value, target=target, ntype=ntype, rule=rule)
+        return True
 
-    def get_utcnow_with_offset(self):
-         now = datetime.utcnow()
-         now -= timedelta(milliseconds=parse_interval(self.time_window))
-         return now
+    def format_time_with_offset(self, dt=None):
+        dt = self.get_time_with_offset(dt)
+        return format_time(dt)
+
+    def get_time_with_offset(self, dt=None):
+        dt = dt or datetime.utcnow()
+        return dt - timedelta(milliseconds=parse_interval(self.until))
 
     def load(self):
         """Load from remote."""
@@ -278,21 +304,19 @@ class GraphiteAlert(BaseAlert):
                                                    auth_password=self.auth_password,
                                                    request_timeout=self.request_timeout,
                                                    connect_timeout=self.connect_timeout)
-                records = (
+                records = [
                     GraphiteRecord(line.decode('utf-8'), self.default_nan_value, self.ignore_nan)
-                    for line in response.buffer)
-                data = [
-                    (None if record.empty else self._get_record_attr(record), record.target)
-                    for record in records]
-                if len(data) == 0:
+                    for line in response.buffer]
+                if len(records) == 0:
                     self.notify(self.loading_error,
                                 'Loading error: Server returned an empty response',
                                 target='loading',
                                 ntype='emptyresp')
                 else:
-                    self.check(data)
+                    self.check(records)
                     self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
             except Exception as e:
+                LOGGER.exception()
                 self.notify(
                     self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
             self.waiting = False
@@ -313,6 +337,9 @@ class GraphiteAlert(BaseAlert):
         return url
 
     def _get_record_attr(self, record):
+        if record.empty:
+            return None
+
         method_tokens = self.method.split(' ', 1)
         if method_tokens[0] == 'percentile':
             return record.percentile(float(method_tokens[1]))
