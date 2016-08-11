@@ -69,6 +69,5 @@ target/
 /.ropeproject
 /.tox
 
-run.py
-
 sftp-config.json
+
