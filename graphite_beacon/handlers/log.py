@@ -18,3 +18,7 @@ class LogHandler(AbstractHandler):
             self.logger.warn(message)
         elif level == 'critical':
             self.logger.error(message)
+
+    def notify_batch(self, level, alert, ntype, data):
+        for (record, value, rule) in data:
+            self.notify(level, alert, value, target=record.target, ntype=ntype, rule=rule)

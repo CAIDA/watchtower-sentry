@@ -6,6 +6,7 @@ from smtplib import SMTP
 from tornado import gen, concurrent
 
 from graphite_beacon.handlers import AbstractHandler, TEMPLATES, LOGGER
+from graphite_beacon import utils
 
 
 class SMTPHandler(AbstractHandler):
@@ -32,12 +33,38 @@ class SMTPHandler(AbstractHandler):
         if not isinstance(self.options['to'], (list, tuple)):
             self.options['to'] = [self.options['to']]
 
-    @gen.coroutine
-    def notify(self, level, *args, **kwargs):
+    def notify(self, level, alert, value, target=None, ntype=None, rule=None):
         LOGGER.debug("Handler (%s) %s", self.name, level)
 
-        msg = self.get_message(level, *args, **kwargs)
-        msg['Subject'] = self.get_short(level, *args, **kwargs)
+        msg = self.get_message(
+            level=level, alert=alert, value=value, target=target, ntype=ntype, rule=rule)
+        msg['Subject'] = self.get_short(level, alert, value, target=target, ntype=ntype, rule=rule)
+        self.send_message(msg)
+
+    def notify_batch(self, level, alert, ntype, data):
+        LOGGER.debug("Handler (%s-batch) %s", self.name, level)
+        
+        msg = self.get_message(True,
+            ntype=ntype, level=level, alert=alert, data=data, utils=utils, time=data[0][0].get_end_time())
+        msg['Subject'] = self.get_short_batch(level, alert, ntype)
+        self.send_message(msg)
+
+    def get_message(self, batch=False, ntype=None, **kwargs):
+        suffix = '-batch' if batch else ''
+        txt_tmpl = TEMPLATES[ntype]['text' + suffix]
+        ctx = dict(reactor=self.reactor, dt=dt, utils=utils, **self.options)
+        ctx.update(**kwargs)
+        msg = MIMEMultipart('alternative')
+        plain = MIMEText(str(txt_tmpl.generate(**ctx)), 'plain')
+        msg.attach(plain)
+        if self.options['html']:
+            html_tmpl = TEMPLATES[ntype]['html' + suffix]
+            html = MIMEText(str(html_tmpl.generate(**ctx)), 'html')
+            msg.attach(html)
+        return msg
+
+    @gen.coroutine
+    def send_message(self, msg):
         msg['From'] = self.options['from']
         msg['To'] = ", ".join(self.options['to'])
 
@@ -55,20 +82,6 @@ class SMTPHandler(AbstractHandler):
             smtp.sendmail(self.options['from'], self.options['to'], msg.as_string())
         finally:
             smtp.quit()
-
-    def get_message(self, level, alert, value, target=None, ntype=None, rule=None):
-        txt_tmpl = TEMPLATES[ntype]['text']
-        ctx = dict(
-            reactor=self.reactor, alert=alert, value=value, level=level, target=target,
-            dt=dt, rule=rule, **self.options)
-        msg = MIMEMultipart('alternative')
-        plain = MIMEText(str(txt_tmpl.generate(**ctx)), 'plain')
-        msg.attach(plain)
-        if self.options['html']:
-            html_tmpl = TEMPLATES[ntype]['html']
-            html = MIMEText(str(html_tmpl.generate(**ctx)), 'html')
-            msg.attach(html)
-        return msg
 
 
 @concurrent.return_future
