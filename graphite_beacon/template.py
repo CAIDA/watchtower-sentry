@@ -26,8 +26,9 @@ TEMPLATES = {
         'html': LOADER.load('graphite/message.html'),
         'text': LOADER.load('graphite/message.txt'),
         'short': LOADER.load('graphite/short.txt'),
-        'telegram': LOADER.load('graphite/short.txt'),
-        'slack': LOADER.load('graphite/slack.txt')
+        'html-batch': LOADER.load('graphite/message-batch.html'),
+        'text-batch': LOADER.load('graphite/message-batch.txt'),
+        'short-batch': LOADER.load('graphite/short-batch.txt'),
     },
     'emptyresp': {
         'html': LOADER.load('error/message.html'),

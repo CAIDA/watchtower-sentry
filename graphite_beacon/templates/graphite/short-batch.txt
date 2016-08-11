@@ -1,0 +1,1 @@
+{{ reactor.options.get('prefix') }} {{level.upper() }} <{{ alert.name }}> ({{ alert.query }}) {% if level == 'normal' %}is back to normal{% else %}failed{% end %}.
