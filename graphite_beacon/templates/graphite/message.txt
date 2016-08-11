@@ -4,14 +4,14 @@
 Alert: {{ alert.name }}
 Status: {{ level }}
 
-Time: {{ '{dt:%b} {dt.day}, {dt.year} {dt.hour}:{dt:%M}{dt:%p}'.format(dt=alert.get_utcnow_with_offset()).lower().capitalize() + ' UTC'}}
+Time: {{ alert.format_time_with_offset() }}
 Value: {{ alert.convert(value) }} ({{value}})
 Method: {{ alert.method }}
-Query: {{ alert.query }}
+Expression: {{ alert.query }}
 {% if target %}
 Target: {{ target }}
 {% if rule %}
-Rule: {{ rule['raw'] }}
+Rule: {{ utils.extract_condition(rule) }}
 {% for expr in filter(lambda x: isinstance(x, dict), rule['exprs']) %}
 Tested history value: {{ alert.convert(alert.get_value_for_expr(expr, target)) }} {% end %}
 {% end %}
