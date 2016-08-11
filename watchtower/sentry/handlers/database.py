@@ -4,8 +4,8 @@ from sqlalchemy import (MetaData, Table, Column,
                         ForeignKey, Sequence,
                         create_engine)
 from sqlalchemy.engine.url import URL
-from graphite_beacon.handlers import AbstractHandler, LOGGER
-from graphite_beacon.utils import extract_condition
+from watchtower.sentry.handlers import AbstractHandler, LOGGER
+from watchtower.sentry.utils import extract_condition
 
 
 class DatabaseHandler(AbstractHandler):

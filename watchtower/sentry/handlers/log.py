@@ -1,4 +1,4 @@
-from graphite_beacon.handlers import AbstractHandler, LOGGER
+from watchtower.sentry.handlers import AbstractHandler, LOGGER
 
 
 class LogHandler(AbstractHandler):

@@ -5,8 +5,8 @@ from smtplib import SMTP
 
 from tornado import gen, concurrent
 
-from graphite_beacon.handlers import AbstractHandler, TEMPLATES, LOGGER
-from graphite_beacon import utils
+from watchtower.sentry.handlers import AbstractHandler, TEMPLATES, LOGGER
+from watchtower.sentry import utils
 
 
 class SMTPHandler(AbstractHandler):

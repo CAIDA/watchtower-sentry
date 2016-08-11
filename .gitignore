@@ -71,3 +71,7 @@ target/
 
 sftp-config.json
 
+# Virtualenv files
+bin/
+include/
+

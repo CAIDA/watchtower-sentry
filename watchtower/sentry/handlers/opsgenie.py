@@ -3,7 +3,7 @@ import urllib
 
 from tornado import gen, httpclient
 
-from graphite_beacon.handlers import AbstractHandler
+from watchtower.sentry.handlers import AbstractHandler
 
 
 class OpsgenieHandler(AbstractHandler):

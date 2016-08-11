@@ -1,8 +1,8 @@
 
 from tornado import log
 
-from graphite_beacon import _compat as _
-from graphite_beacon.template import TEMPLATES
+from watchtower.sentry import _compat as _
+from watchtower.sentry.template import TEMPLATES
 
 LOGGER = log.gen_log
 

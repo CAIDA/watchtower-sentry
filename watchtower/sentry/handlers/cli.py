@@ -1,6 +1,6 @@
 import subprocess
 
-from graphite_beacon.handlers import AbstractHandler, LOGGER
+from watchtower.sentry.handlers import AbstractHandler, LOGGER
 
 
 class CliHandler(AbstractHandler):

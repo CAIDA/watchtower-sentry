@@ -1,43 +1,8 @@
-graphite-beacon
-===============
+Watchtower Sentry
+=================
 
-![logo](https://raw.github.com/klen/graphite-beacon/develop/beacon.png)
-
-Simple alerting system for [Graphite](http://graphite.wikidot.com/) metrics.
-
-Features:
-
-- Simplest installation (one python package dependency)
-- No software dependencies (Databases, AMQP and etc)
-- Light and full asyncronous
-- SMTP, HipChat, Slack, PagerDuty, HTTP handlers (Please make a request for additional handlers)
-- Easy configurable and supports historical values
-
-[![Build status](http://img.shields.io/travis/klen/graphite-beacon.svg?style=flat-square)](http://travis-ci.org/klen/graphite-beacon)
-[![Coverage](http://img.shields.io/coveralls/klen/graphite-beacon.svg?style=flat-square)](https://coveralls.io/r/klen/graphite-beacon)
-[![Version](http://img.shields.io/pypi/v/graphite-beacon.svg?style=flat-square)](https://pypi.python.org/pypi/graphite_beacon)
-[![License](http://img.shields.io/pypi/l/graphite-beacon.svg?style=flat-square)](https://pypi.python.org/pypi/graphite_beacon)
-[![Downloads](http://img.shields.io/pypi/dm/graphite-beacon.svg?style=flat-square)](https://pypi.python.org/pypi/graphite_beacon)
-
-Example:
-```js
-{
-"graphite_url": "http://g.server.org",
-"smtp": {
-    "from": "beacon@server.org",
-    "to": ["me@gmail.com"]
-},
-"alerts": [
-    {   "name": "MEM",
-        "format": "bytes",
-        "query": "aliasByNode(sumSeriesWithWildcards(collectd.*.memory.{memory-free,memory-cached}, 3), 1)",
-        "rules": ["critical: < 200MB", "warning: < 400MB", "warning: < historical / 2"] },
-    {   "name": "CPU",
-        "format": "percent",
-        "query": "aliasByNode(sumSeriesWithWildcards(collectd.*.cpu-*.cpu-user, 2), 1)",
-        "rules": ["critical: >= 80%", "warning: >= 70%"] }
-]}
-```
+Alert generation component of the [Charthouse](http://charthouse.caida.org/)
+Watchtower framework.
 
 Requirements
 ------------
@@ -47,44 +12,12 @@ Requirements
 - funcparserlib
 
 
-Installation
-------------
-
-### Python package
-
-**graphite-beacon** can be installed using pip:
-
-    pip install graphite-beacon
-
-### Debian package
-
-Using the command line, add the following to your /etc/apt/sources.list system config file:
-
-    echo "deb http://dl.bintray.com/klen/deb /" | sudo tee -a /etc/apt/sources.list
-    echo "deb-src http://dl.bintray.com/klen/deb /" | sudo tee -a /etc/apt/sources.list
-
-Install the package using apt-get:
-
-    apt-get update
-    apt-get install graphite-beacon
-
-### Ansible role
-
-There is an ansible role to install the package: https://github.com/Stouts/Stouts.graphite-beacon
-
-## Docker
-
-Build a config.json file and run :
-
-    docker run -v /path/to/config.json:/srv/alerting/etc/config.json deliverous/graphite-beacon
-
-
 Usage
 -----
 
-Just run `graphite-beacon`:
+Just run `watchtower-sentry`:
 
-    $ graphite-beacon
+    $ watchtower-sentry
     [I 141025 11:16:23 core:141] Read configuration
     [I 141025 11:16:23 core:55] Memory (10minute): init
     [I 141025 11:16:23 core:166] Loaded with options:
@@ -114,7 +47,7 @@ Value units:
 
 The default options are:
 
-> Note: comments are not allowed in JSON, but graphite-beacon strips them
+> Note: comments are not allowed in JSON, but watchtower-sentry strips them
 
 ```js
 
@@ -198,7 +131,7 @@ You can setup options with a configuration file. See examples for
 [JSON](examples/example-config.json) and
 [YAML](examples/example-config.yaml).
 
-A `config.json` file in the same directory that you run `graphite-beacon`
+A `config.json` file in the same directory that you run `watchtower-sentry`
 from will be used automatically.
 
 #### Setup alerts
@@ -207,7 +140,7 @@ Currently two types of alerts are supported:
 - Graphite alert (default) - check graphite metrics
 - URL alert - load http and check status
 
-> Note: comments are not allowed in JSON, but graphite-beacon strips them
+> Note: comments are not allowed in JSON, but watchtower-sentry strips them
 
 ```js
 
@@ -250,7 +183,7 @@ Currently two types of alerts are supported:
 
 ##### Historical values
 
-graphite-beacon supports "historical" values for a rule.
+watchtower-sentry supports "historical" values for a rule.
 For example you may want to get warning when CPU usage is greater than 150% of normal usage:
 
     "warning: > historical * 1.5"
@@ -316,104 +249,11 @@ Sends an email (enabled by default).
 }
 ```
 
-#### HipChat Handler
-
-Sends a message to a HipChat room.
-
-```js
-{
-    "hipchat": {
-        // (optional) Custom HipChat URL
-        "url": 'https://api.custom.hipchat.my',
-
-        "room": "myroom",
-        "key": "mykey"
-    }
-}
-```
-
-#### Webhook Handler (HTTP)
-
-Triggers a webhook.
-
-```js
-{
-    "http": {
-        "url": "http://myhook.com",
-        "params": {},                 // (optional) Additional query(data) params
-        "method": "GET"               // (optional) HTTP method
-    }
-}
-```
-
-#### Slack Handler
-
-Sends a message to a user or channel on Slack.
-
-```js
-{
-    "slack": {
-        "webhook": "https://hooks.slack.com/services/...",
-        "channel": "#general",          // #channel or @user (optional)
-        "username": "graphite-beacon",
-    }
-}
-```
-
-#### Command Line Handler
-
-Runs a command.
-
-```js
-{
-    "cli": {
-        // Command to run (required)
-        // Several variables that will be substituted by values are allowed:
-        //  ${level} -- alert level
-        //  ${name} -- alert name
-        //  ${value} -- current metrics value
-        //  ${limit_value} -- metrics limit value
-        "command": "./myscript ${level} ${name} ${value} ...",
-
-        // Whitelist of alerts that will trigger this handler (optional)
-        // All alerts will trigger this handler if absent.
-        "alerts_whitelist": ["..."]
-    }
-}
-```
-
-#### PagerDuty Handler
-
-Triggers a PagerDuty incident.
-
-```js
-{
-    "pagerduty": {
-        "subdomain": "yoursubdomain",
-        "apitoken": "apitoken",
-        "service_key": "servicekey",
-    }
-}
-```
-
-#### Telegram Handler
-
-Sends a Telegram message.
-
-```js
-{
-    "telegram": {
-        "token": "telegram bot token",
-        "bot_ident": "token used to activate bot in a group"
-    }
-}
-```
-
 ### Command Line Usage
 
 ```
-  $ graphite-beacon --help
-  Usage: graphite-beacon [OPTIONS]
+  $ watchtower-sentry --help
+  Usage: watchtower-sentry [OPTIONS]
 
   Options:
 
@@ -440,46 +280,10 @@ Sends a Telegram message.
                                      (default info)
 ```
 
-Bug tracker
------------
+License and History
+-------------------
 
-If you have any suggestions, bug reports or annoyances please report them to
-the issue tracker at https://github.com/klen/graphite-beacon/issues
-
-Contributors
--------------
-
-* Andrej Kuročenko (https://github.com/kurochenko)
-* Cody Soyland (https://github.com/codysoyland)
-* Garrett Heel (https://github.com/GarrettHeel)
-* George Ionita (https://github.com/georgeionita)
-* James Yuzawa (https://github.com/yuzawa-san)
-* Kirill Klenov (https://github.com/klen)
-* Konstantin Bakulin (https://github.com/kbakulin)
-* Lammert Hellinga (https://github.com/Kogelvis)
-* Miguel Moll (https://github.com/MiguelMoll)
-* Nick Pillitteri (https://github.com/56quarters)
-* Niku Toivola (https://github.com/nikut)
-* Olli-Pekka Puolitaival (https://github.com/OPpuolitaival)
-* Phillip Hagedorn (https://github.com/phagedorn)
-* Raine Virta (https://github.com/raine)
-* Scott Nonnenberg (https://github.com/scottnonnenberg)
-* Sean Johnson (https://github.com/pirogoeth)
-* Terry Peng (https://github.com/tpeng)
-* Thomas Clavier (https://github.com/tclavier)
-* Yuriy Ilyin (https://github.com/YuriyIlyin)
-* dugeem (https://github.com/dugeem)
-* Joakim (https://github.com/VibyJocke)
-
-License
---------
+Watchtower Sentry is heavily based on [Graphite Beacon](https://github.com/klen/graphite-beacon)
 
 Licensed under a [MIT license](http://www.linfo.org/mitlicense.html)
 
-If you wish to express your appreciation for the role, you are welcome to send
-a postcard to:
-
-    Kirill Klenov
-    pos. Severny 8-3
-    MO, Istra, 143500
-    Russia

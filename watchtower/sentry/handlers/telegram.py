@@ -1,8 +1,8 @@
 import json
 from tornado import gen, httpclient
 
-from graphite_beacon.handlers import AbstractHandler, LOGGER
-from graphite_beacon.template import TEMPLATES
+from watchtower.sentry.handlers import AbstractHandler, LOGGER
+from watchtower.sentry.template import TEMPLATES
 
 
 class TelegramHandler(AbstractHandler):

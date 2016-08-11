@@ -2,7 +2,7 @@ import urllib
 
 from tornado import gen, httpclient as hc
 
-from graphite_beacon.handlers import AbstractHandler, LOGGER
+from watchtower.sentry.handlers import AbstractHandler, LOGGER
 
 
 class HttpHandler(AbstractHandler):
