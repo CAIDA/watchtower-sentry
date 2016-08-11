@@ -28,7 +28,7 @@
 
             <b>Time:</b> {{ utils.format_time(time) }}</b> <br/>
 
-            <b>Expression:</b> <a href="{{alert.get_graph_url(alert.query)}}" target="_blank">{{ utils.break_dot_html(alert.query) }}</a></b> <br/>
+            <b>Expression:</b> <a href="{{alert.get_graph_url()}}" target="_blank">{{ utils.break_dot_html(alert.current_query) }}</a></b> <br/>
 
             <b>Method:</b> {{ alert.method }}</b> <br/>
 

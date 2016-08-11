@@ -32,7 +32,7 @@
 
             <b>Method:</b> {{ alert.method }}</b> <br/>
 
-            <b>Expression:</b> {{ alert.query }}</b> <br/>
+            <b>Expression:</b> {{ alert.current_query }}</b> <br/>
 
             {% if target %}
             <b>Target:</b> {{ target }}</b> <br/>
@@ -53,12 +53,10 @@
     </tr>
     <tr>
         <td align="center" valign="top" class="bottomShim">
-            {# <img src="{{alert.get_graph_url(alert.query, graphite_url)}}" alt="graph"/>
-            <br/> <br/> #}
             <table border="0" cellpadding="0" cellspacing="0" width="260" class="emailButton">
                 <tr>
                     <td align="center" valign="middle" class="buttonContent">
-                        <a href="{{alert.get_graph_url(target if target else alert.query, graphite_url)}}" target="_blank">Open the graph</a>
+                        <a href="{{alert.get_graph_url(target, graphite_url)}}" target="_blank">Open the graph</a>
                     </td>
                 </tr>
             </table>

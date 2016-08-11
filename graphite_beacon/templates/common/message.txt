@@ -3,10 +3,4 @@
 
 Alert: {{ alert.name }}
 Message: {{ value }}
-Time: {{ dt.datetime.now().strftime('%H:%M %d/%m/%Y') }}
-
---
-
-You can configure alerts for notifications in your congifuration file.
-See https://github.com/klen/graphite-beacon
-
+Time: {{ utils.format_time(dt.datetime.utcnow()) }}

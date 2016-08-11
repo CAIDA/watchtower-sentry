@@ -5,7 +5,7 @@ Alert: {{ alert.name }}
 Status: {{ level }}
 
 Time: {{ utils.format_time(time) }}
-Expression: {{ alert.query }}
+Expression: {{ alert.current_query }}
 Method: {{ alert.method }}
 {% for i, (record, value, rule) in enumerate(data) %}
 Target{{ ' {}'.format(i + 1) if len(data) != 1 else '' }}: {{ record.target }}
