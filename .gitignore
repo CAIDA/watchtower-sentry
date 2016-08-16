@@ -69,10 +69,12 @@ target/
 /.ropeproject
 /.tox
 
-sftp-config.json
-
 # Virtualenv files
 bin/
 include/
 pip-selfcheck.json
+
+# IDE crap
+sftp-config.json
+.idea/
 
