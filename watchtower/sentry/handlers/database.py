@@ -104,7 +104,7 @@ class DatabaseHandler(AbstractHandler):
                 name=alert.name,
                 time=time,
                 level=level,
-                expression=alert.current_query,
+                expression=alert.current_query['current'],
                 method=alert.method)
 
             result = conn.execute(ins)
@@ -129,7 +129,7 @@ class DatabaseHandler(AbstractHandler):
             ins = self.t_error.insert().values(
                 name=alert.name,
                 time=alert.get_time_with_offset(),
-                expression=alert.current_query,
+                expression=alert.current_query['current'],
                 type=ntype or 'Unknown', # should be undefined behavior. Just in case
                 message=message)
 
