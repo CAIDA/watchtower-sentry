@@ -165,26 +165,33 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         self.callback.stop()
         return self
 
-    def check(self, records):
+    def check(self, current_records, history_records):
         """Check current value."""
         nones, normals = [], []
         violations = {}
 
-        for r in records:
-            value = self._get_record_attr(r)
-            LOGGER.debug("%s [%s]: %s", self.name, r.target, value)
-            if value is None:
-                nones.append((r, value, None))
+        if len(current_records) != len(history_records):
+            raise ValueError('Number of series in current and history queries '
+                             'must match (%d != %d)'
+                             % (len(current_records), len(history_records)))
+
+        for current, history in zip(current_records, history_records):
+            cval = self._get_record_attr(current)
+            hval = self._get_record_attr(history)
+            LOGGER.debug("%s CURRENT [%s]: %s", self.name, current.target, cval)
+            LOGGER.debug("%s HISTORY [%s]: %s", self.name, history.target, hval)
+            if cval is None:
+                nones.append((current, cval, None))
             else:
                 for rule in self.rules:
-                    if self.evaluate_rule(rule, value, r.target):
-                        violations.setdefault(rule['level'], []).append((r, value, rule))
+                    if self.evaluate_rule(rule, cval, current.target):
+                        violations.setdefault(rule['level'], []).append((current, cval, rule))
                         if not self.options['ignore_alerted_history']:
-                            self.history[r.target].append(value)
+                            self.history[current.target].append(hval)
                         break
                 else:
-                    normals.append((r, value, None))
-                    self.history[r.target].append(value)
+                    normals.append((current, cval, None))
+                    self.history[current.target].append(hval)
 
         self.notify_batch(self.no_data, nones)
         for level, data in violations.items():
@@ -288,10 +295,20 @@ class GraphiteAlert(BaseAlert):
         self.auth_username = self.reactor.options.get('auth_username')
         self.auth_password = self.reactor.options.get('auth_password')
 
-        self.urls = [self._graphite_url(
-            query, graphite_url=self.reactor.options.get('graphite_url'), raw_data=True)
-        for query in self.queries]
-        self.current_url = None
+        self.urls = []
+        queries = self.queries
+        self.queries = []
+        for query in queries:
+            if isinstance(query, basestring):
+                query = {
+                    'current': query,
+                    'history': query,
+                }
+            self.queries.append(query)
+            self.urls.append(self._graphite_urls(
+                query, graphite_url=self.reactor.options.get('graphite_url'),
+                raw_data=True))
+
         LOGGER.debug('%s: urls = %s', self.name, self.urls)
 
     @gen.coroutine
@@ -303,27 +320,45 @@ class GraphiteAlert(BaseAlert):
             self.waiting = True
 
             for query, url in zip(self.queries, self.urls):
-                self.current_query = query
-                self.current_url = url
+                self.current_query = query  # query['current'|'history']
+                self.current_url = url  # url['current'|'history']
                 LOGGER.debug('%s: start checking: %s', self.name, query)
                 try:
-                    response = yield self.client.fetch(url, auth_username=self.auth_username,
+                    response = yield self.client.fetch(url['current'],
+                                                       auth_username=self.auth_username,
                                                        auth_password=self.auth_password,
                                                        request_timeout=self.request_timeout,
                                                        connect_timeout=self.connect_timeout)
-                    records = [
-                        GraphiteRecord(line.decode('utf-8'), self.default_nan_value, self.ignore_nan)
-                        for line in response.buffer]
-                    if len(records) == 0:
+
+                    current_records = [GraphiteRecord(line.decode('utf-8'),
+                                                      self.default_nan_value,
+                                                      self.ignore_nan)
+                                       for line in response.buffer]
+
+                    if query['current'] == query['history']:
+                        history_records = current_records
+                    else:
+                        response = yield self.client.fetch(url['history'],
+                                                           auth_username=self.auth_username,
+                                                           auth_password=self.auth_password,
+                                                           request_timeout=self.request_timeout,
+                                                           connect_timeout=self.connect_timeout)
+
+                        history_records = [GraphiteRecord(line.decode('utf-8'),
+                                                          self.default_nan_value,
+                                                          self.ignore_nan)
+                                           for line in response.buffer]
+
+                    if len(current_records) == 0 or len(history_records) == 0:
                         self.notify(self.loading_error,
                                     'Loading error: Server returned an empty response',
                                     target='loading',
                                     ntype='emptyresp')
                     else:
-                        self.check(records)
+                        self.check(current_records, history_records)
                         self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
                 except Exception as e:
-                    LOGGER.exception()
+                    LOGGER.exception(e)
                     self.notify(
                         self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
 
@@ -334,15 +369,23 @@ class GraphiteAlert(BaseAlert):
         return self._graphite_url(target, graphite_url=graphite_url, raw_data=False)
 
     def _graphite_url(self, query, raw_data=False, graphite_url=None):
-        """Build Graphite URL."""
         query = escape.url_escape(query)
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
-
         url = "{base}/render/?target={query}&from=-{time_window}&until=-{until}".format(
             base=graphite_url, query=query, time_window=self.time_window, until=self.until)
         if raw_data:
             url = "{0}&rawData=true".format(url)
         return url
+
+    def _graphite_urls(self, query, raw_data=False, graphite_url=None):
+        """Build Graphite URLs (current + history)."""
+        urls = {
+            'current': self._graphite_url(query['current'],
+                                          raw_data, graphite_url),
+            'history': self._graphite_url(query['history'],
+                                          raw_data, graphite_url)
+        }
+        return urls
 
     def _get_record_attr(self, record):
         if record.empty:
@@ -372,9 +415,9 @@ class CharthouseAlert(GraphiteAlert):
         # Make width of span configurable?
         # Must use timestamp with from & until instead of relative time in emails
         now = mktime(datetime.now().timetuple())
-        defualt_window = timedelta(hours=6).total_seconds()
-        since = int(now - parse_interval(self.time_window) / 1e3 - defualt_window)
-        until = int(now - parse_interval(self.until) / 1e3 + defualt_window)
+        default_window = timedelta(hours=6).total_seconds()
+        since = int(now - parse_interval(self.time_window) / 1e3 - default_window)
+        until = max(now, int(now - parse_interval(self.until) / 1e3 + default_window))
 
         url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
             base=charthouse_url, query=query, since=since, until=until)
