@@ -320,8 +320,8 @@ class GraphiteAlert(BaseAlert):
             self.waiting = True
 
             for query, url in zip(self.queries, self.urls):
-                self.current_query = query  # query['current'|'history']
-                self.current_url = url  # url['current'|'history']
+                self.current_query = query['current']
+                self.current_url = url['current']
                 LOGGER.debug('%s: start checking: %s', self.name, query)
                 try:
                     response = yield self.client.fetch(url['current'],
@@ -408,7 +408,7 @@ class CharthouseAlert(GraphiteAlert):
 
     def _charthouse_url(self, query=None, charthouse_url=None):
         """Build Charthouse URL."""
-        query = escape.url_escape(query or self.current_query['current'])
+        query = escape.url_escape(query or self.current_query)
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
         
         # Show a span of extra 12 hours around the window, centered
