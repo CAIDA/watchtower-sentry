@@ -215,18 +215,23 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
         return evaluated[0]
 
+    def get_history_val(self, target):
+        history = self.history[target]
+        if len(history) == 0:  # allow partial, but not empty, history
+            return None
+        return sum(history) / float(len(history))
+
     def get_value_for_expr(self, expr, target):
         """I have no idea."""
         if expr in LOGICAL_OPERATORS.values():
             return None
         rvalue = expr['value']
         if rvalue == HISTORICAL:
-            history = self.history[target]
-            if len(history) < self.history_size:
-                return None
-            rvalue = sum(history) / float(len(history))
+            rvalue = self.get_history_val(target)
+            LOGGER.debug("%s HISTORY VAL: %s" % (target, rvalue))
 
-        rvalue = expr['mod'](rvalue)
+        if rvalue is not None:
+            rvalue = expr['mod'](rvalue)
         return rvalue
 
     def notify(self, level, value, target=None, ntype=None, rule=None):
