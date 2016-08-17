@@ -40,7 +40,7 @@ class Reactor(object):
         'no_data': 'critical',
         'normal_handlers': ['log', 'smtp'],
         'pidfile': None,
-        'prefix': '[BEACON]',
+        'prefix': '[WATCHTOWER]',
         'public_graphite_url': None,
         'public_charthouse_url': None,
         'repeat_interval': '2hour',
