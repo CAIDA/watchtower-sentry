@@ -1,9 +1,8 @@
 import calendar
-import json
-import pykafka
 
 from watchtower.sentry.handlers import AbstractHandler, LOGGER
 from watchtower.sentry.utils import extract_condition
+import watchtower.alert
 
 
 class KafkaHandler(AbstractHandler):
@@ -18,17 +17,13 @@ class KafkaHandler(AbstractHandler):
         'error_topic': 'errors',
     }
 
-    def _connect_topic(self, topic_name):
-        full_name = "%s-%s" % (self.options['topic_prefix'], topic_name)
-        LOGGER.debug("Connecting topic %s" % full_name)
-        return self.kc.topics[full_name.encode("ascii")].get_sync_producer()
-
     def init_handler(self):
         # connect to kafka
-        self.kc = pykafka.KafkaClient(hosts=self.options['brokers'])
-        # create topic handles
-        self.alert_t = self._connect_topic(self.options['alert_topic'])
-        self.error_t = self._connect_topic(self.options['error_topic'])
+        self.producer = \
+            watchtower.alert.Producer(brokers=self.options['brokers'],
+                                      topic_prefix=self.options['topic_prefix'],
+                                      alert_topic=self.options['alert_topic'],
+                                      error_topic=self.options['error_topic'])
 
     def notify(self, level, alert, value, target=None, ntype=None, rule=None):
         LOGGER.debug('Handler (%s) %s', self.name, level)
@@ -42,14 +37,15 @@ class KafkaHandler(AbstractHandler):
             # Usually means internal error or time-series-unrelated events
             self.insert_error(alert, ntype, value)
 
-    def create_violation(self, alert, target, value, rule):
-        return {
-            'target': target,
-            'value': value,
-            'condition': extract_condition(rule),
-            'history': list(alert.history[target]),
-            'history_val': alert.get_history_val(target)
-        }
+    @staticmethod
+    def create_violation(alert, target, value, rule):
+        return watchtower.alert.Violation(
+            target=target,
+            value=value,
+            condition=extract_condition(rule),
+            history=list(alert.history[target]),
+            history_value=alert.get_history_val(target)
+        )
 
     def notify_batch(self, level, alert, ntype, data):
         """Insert an alert with multiple targets"""
@@ -66,20 +62,20 @@ class KafkaHandler(AbstractHandler):
             raise RuntimeError('Call notify() to insert error')
 
     def insert_alert(self, level, alert, time, violations):
-        self.alert_t.produce(json.dumps({
-            'name': alert.name,
-            'time': calendar.timegm(time.timetuple()),
-            'level': level,
-            'expression': alert.current_query,
-            'method': alert.method,
-            'violations': violations,
-        }))
+        self.producer.produce_alert(
+            watchtower.alert.Alert(name=alert.name,
+                                   time=calendar.timegm(time.timetuple()),
+                                   level=level,
+                                   expression=alert.current_query,
+                                   method=alert.method,
+                                   violations=violations)
+        )
 
     def insert_error(self, alert, ntype, message):
-        self.error_t.produce(json.dumps({
-            'name': alert.name,
-            'time': calendar.timegm(alert.get_time_with_offset().timetuple()),
-            'expression': alert.current_query,
-            'type': ntype or 'Unknown',  # should be undefined behavior.
-            'message': message
-        }))
+        self.producer.produce_error(watchtower.alert.Error(
+            name=alert.name,
+            time=calendar.timegm(alert.get_time_with_offset().timetuple()),
+            expression=alert.current_query,
+            error_type=ntype or 'Unknown',  # Should be undefined behavior
+            message=message
+        ))
