@@ -40,7 +40,7 @@ class KafkaHandler(AbstractHandler):
     @staticmethod
     def create_violation(alert, target, value, rule):
         return watchtower.alert.Violation(
-            target=target,
+            expression=target,
             value=value,
             condition=extract_condition(rule),
             history=list(alert.history[target]),
@@ -76,6 +76,6 @@ class KafkaHandler(AbstractHandler):
             name=alert.name,
             time=calendar.timegm(alert.get_time_with_offset().timetuple()),
             expression=alert.current_query,
-            error_type=ntype or 'Unknown',  # Should be undefined behavior
+            type=ntype or 'Unknown',  # Should be undefined behavior
             message=message
         ))
