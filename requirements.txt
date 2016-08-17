@@ -2,3 +2,5 @@ tornado == 4.1.0
 funcparserlib==0.3.6
 sqlalchemy
 psycopg2
+pykafka
+python-snappy
