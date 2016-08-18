@@ -62,11 +62,13 @@ class KafkaHandler(AbstractHandler):
             raise RuntimeError('Call notify() to insert error')
 
     def insert_alert(self, level, alert, time, violations):
+        LOGGER.debug('Alert expression: %s' % alert.current_query)
         self.producer.produce_alert(
             watchtower.alert.Alert(name=alert.name,
                                    time=calendar.timegm(time.timetuple()),
                                    level=level,
                                    expression=alert.current_query,
+                                   history_expression=alert.history_query,
                                    method=alert.method,
                                    violations=violations)
         )
@@ -76,6 +78,7 @@ class KafkaHandler(AbstractHandler):
             name=alert.name,
             time=calendar.timegm(alert.get_time_with_offset().timetuple()),
             expression=alert.current_query,
+            history_expression=alert.history_query,
             type=ntype or 'Unknown',  # Should be undefined behavior
             message=message
         ))

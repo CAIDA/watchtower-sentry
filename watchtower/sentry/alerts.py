@@ -112,6 +112,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         assert queries and all(queries), "%s: Alert's queries are invalid" % self.name
         self.queries = queries
         self.current_query = None
+        self.history_query = None
 
         self.interval = interval_to_graphite(
             options.get('interval', self.reactor.options['interval']))
@@ -314,6 +315,7 @@ class GraphiteAlert(BaseAlert):
                 query, graphite_url=self.reactor.options.get('graphite_url'),
                 raw_data=True))
 
+        LOGGER.debug('%s: queries = %s', self.name, self.queries)
         LOGGER.debug('%s: urls = %s', self.name, self.urls)
 
     @gen.coroutine
@@ -326,6 +328,7 @@ class GraphiteAlert(BaseAlert):
 
             for query, url in zip(self.queries, self.urls):
                 self.current_query = query['current']
+                self.history_query = query['history']
                 self.current_url = url['current']
                 LOGGER.debug('%s: start checking: %s', self.name, query)
                 try:
