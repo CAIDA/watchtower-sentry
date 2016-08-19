@@ -12,6 +12,7 @@ from .utils import (
     parse_interval,
     parse_rule,
     format_time,
+    percentile,
 )
 import math
 from collections import deque, defaultdict
@@ -26,6 +27,16 @@ LEVELS = {
     'critical': 0,
     'warning': 10,
     'normal': 20,
+}
+
+AGGR_FUNCS = {
+    'average': lambda vals: sum(vals) / len(vals),
+    'last_value': lambda vals: vals[-1],
+    'sum': sum,
+    'minimum': min,
+    'maximum': max,
+    'median': lambda vals: percentile(sorted(vals), 0.5),
+    'percentile': lambda vals, rank: percentile(sorted(vals), 0.5)
 }
 
 
@@ -138,6 +149,10 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         self.no_data = options.get('no_data', self.reactor.options['no_data'])
         self.loading_error = options.get('loading_error', self.reactor.options['loading_error'])
 
+        self.history_method = \
+            options.get('history_method',
+                        self.reactor.options['history_method'])
+
         if self.reactor.options.get('debug'):
             self.callback = ioloop.PeriodicCallback(self.load, 5000)
         else:
@@ -220,7 +235,11 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         history = self.history[target]
         if len(history) == 0:  # allow partial, but not empty, history
             return None
-        return sum(history) / float(len(history))
+        method_tokens = self.history_method.split(' ', 1)
+        if method_tokens[0] == 'percentile':
+            return AGGR_FUNCS['percentile'](history, float(method_tokens[1]))
+        else:
+            return AGGR_FUNCS[self.history_method](history)
 
     def get_value_for_expr(self, expr, target):
         """I have no idea."""

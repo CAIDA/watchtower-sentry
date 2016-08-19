@@ -1,3 +1,4 @@
+import math
 from re import compile as re
 import operator as op
 
@@ -164,4 +165,22 @@ def format_time(dt):
 
 def extract_condition(rule):
     return rule['raw'].split(':')[-1].strip() if rule else None
-    
+
+
+def percentile(vals, rank):
+    """
+    Find the nth percentile of a list of values
+    :param vals: list of values -- MUST BE SORTED
+    :param rank: percentile to calculate (0.0 - 1.0)
+    :return: the percentile
+    """
+    if not vals:
+        return None
+    k = (len(vals)-1) * rank
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return vals[int(k)]
+    d0 = vals[int(f)] * (c-k)
+    d1 = vals[int(c)] * (k-f)
+    return d0+d1
