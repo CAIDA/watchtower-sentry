@@ -37,6 +37,7 @@ class Reactor(object):
         'interval': '10minute',
         'logging': 'info',
         'method': 'average',
+        'history_method': 'median',
         'no_data': 'critical',
         'normal_handlers': ['log', 'smtp'],
         'pidfile': None,
