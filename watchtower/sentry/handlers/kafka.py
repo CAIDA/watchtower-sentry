@@ -64,17 +64,21 @@ class KafkaHandler(AbstractHandler):
     def insert_alert(self, level, alert, time, violations):
         LOGGER.debug('Alert expression: %s' % alert.current_query)
         self.producer.produce_alert(
-            watchtower.alert.Alert(name=alert.name,
-                                   time=calendar.timegm(time.timetuple()),
-                                   level=level,
-                                   expression=alert.current_query,
-                                   history_expression=alert.history_query,
-                                   method=alert.method,
-                                   violations=violations)
+            watchtower.alert.Alert(
+                fqid=alert.fqid,
+                name=alert.name,
+                time=calendar.timegm(time.timetuple()),
+                level=level,
+                expression=alert.current_query,
+                history_expression=alert.history_query,
+                method=alert.method,
+                violations=violations
+            )
         )
 
     def insert_error(self, alert, ntype, message):
         self.producer.produce_error(watchtower.alert.Error(
+            fqid=alert.fqid,
             name=alert.name,
             time=calendar.timegm(alert.get_time_with_offset().timetuple()),
             expression=alert.current_query,
