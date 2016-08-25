@@ -113,7 +113,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         """Configure the alert."""
         self.fqid = fqid
         self.name = name
-        if not name or fqid:
+        if not name or not fqid:
             raise AssertionError("Alert's name and FQID should be set.")
 
         if not rules:
