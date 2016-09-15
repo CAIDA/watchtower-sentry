@@ -67,6 +67,5 @@ registry = HandlerMeta
 
 from .log import LogHandler              # noqa
 from .smtp import SMTPHandler            # noqa
-from .database import DatabaseHandler    # noqa
 from .kafka import KafkaHandler    # noqa
 
