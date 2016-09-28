@@ -35,4 +35,4 @@ TEMPLATES = {
         'short': LOADER.load('common/short.txt'),
     }
 }
-
+TEMPLATES['scanner'] = TEMPLATES['charthouse']

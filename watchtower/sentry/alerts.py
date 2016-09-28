@@ -438,7 +438,7 @@ class CharthouseAlert(GraphiteAlert):
         """Build Charthouse URL."""
         query = escape.url_escape(query or self.current_query)
         charthouse_url = charthouse_url or self.reactor.options.get('charthouse_url')
-        
+
         # Show a span of extra 12 hours around the window, centered
         # Make width of span configurable?
         # Must use timestamp with from & until instead of relative time in emails
@@ -452,36 +452,43 @@ class CharthouseAlert(GraphiteAlert):
         return url
 
 
-# Does not support queries now
-# class URLAlert(BaseAlert):
+class CharthouseScanner(CharthouseAlert):
 
-#     """Check URLs."""
+    source = 'scanner'
 
-#     source = 'url'
+    def configure(self, **options):
+        super(CharthouseScanner, self).configure(**options)
 
-#     @staticmethod
-#     def get_data(response):
-#         """Value is response.status."""
-#         return response.code
+        self.scan_from, self.scan_until = map(options.get, ('scan_from', 'scan_until'))
+        assert self.scan_from and self.scan_until and self.scan_from < self.scan_until, \
+            'Invalid scanning start and end time'
 
-#     @gen.coroutine
-#     def load(self):
-#         """Load URL."""
-#         LOGGER.debug('%s: start checking: %s', self.name, self.query)
-#         if self.waiting:
-#             self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
-#         else:
-#             self.waiting = True
-#             try:
-#                 response = yield self.client.fetch(
-#                     self.query, method=self.options.get('method', 'GET'),
-#                     request_timeout=self.request_timeout,
-#                     connect_timeout=self.connect_timeout,
-#                     validate_cert=self.options.get('validate_cert', True))
-#                 self.check([(self.get_data(response), self.query)])
-#                 self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+        try:
+            self.scan_step, self.scan_span = (parse_interval(options.get(s)) / 1e3 for s in
+                ('scan_step', 'scan_span'))
+        except Exception as e:
+            LOGGER.exception(e)
+            raise AssertionError('Invalid scanning step or span')
 
-#             except Exception as e:
-#                 self.notify('critical', str(e), target='loading', ntype='common')
+    def start(self):
+        raise RuntimeError('Scanner does not have periodic callbacks')
 
-#             self.waiting = False
+    @gen.coroutine
+    def load(self):
+        graphite_url = self.reactor.options.get('graphite_url')
+        steps = int((self.scan_until - 1 - self.scan_from) / self.scan_step)
+
+        for i in range(steps):
+            t = self.scan_from + i * self.scan_step - 1
+            self.time_window, self.until = int(t), int(t + self.scan_span)
+            self.urls = [self._graphite_urls(
+                query, graphite_url=graphite_url, raw_data=True) for query in self.queries]
+            LOGGER.debug('%s: scanning from %s to %s', self.name, self.time_window, self.until)
+
+            yield super(CharthouseScanner, self).load()
+
+        raise gen.Return(True)
+
+    def _graphite_url(self, *args, **kwargs):
+        return super(CharthouseScanner, self)._graphite_url(*args, **kwargs) \
+            .replace('&from=-', '&from=').replace('&until=-', '&until=')
