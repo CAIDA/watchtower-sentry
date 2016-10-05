@@ -3,7 +3,7 @@ from re import compile as re, M
 
 import json
 import logging
-from tornado import ioloop, log
+from tornado import ioloop, log, gen
 
 from .alerts import BaseAlert
 from .utils import parse_interval
@@ -54,7 +54,11 @@ class Reactor(object):
         'ignore_nan': False,
         'loading_error': 'critical',
         'ignore_alerted_history': False,
-        'alerts': []
+        'alerts': [],
+        'scan_span': '1m',
+        'scan_step': '5m',
+        'scan_from': None, # should be absolute time
+        'scan_until': None
     }
 
     def __init__(self, **options):
@@ -107,7 +111,8 @@ class Reactor(object):
                     self.options.get('alerts').extend(config.pop("alerts", []))
                     self.options.update(config)
 
-            except (IOError, ValueError):
+            except (IOError, ValueError) as e:
+                LOGGER.exception(e)
                 LOGGER.error('Invalid config file: %s' % config)
 
     def reinit_handlers(self, level='warning'):
@@ -182,3 +187,59 @@ def _get_numeric_log_level(level):
         except KeyError:
             raise ValueError("Unknown log level: %s" % level)
     return level
+
+
+class ScannerReactor(Reactor):
+    """Reactor for watchtower scanner"""
+    def __init__(self, **options):
+        super(ScannerReactor, self).__init__(**options)
+        self.loop.add_callback(self._scan)
+
+        # Prevent periodic callback
+        self.callback = ioloop.PeriodicCallback(id, 1e10)
+
+    def reinit(self, *args, **options):
+        LOGGER.info('Read configuration')
+
+        self.options.update(options)
+
+        self.include_config(self.options.get('config'))
+        for config in self.options.pop('include', []):
+            self.include_config(config)
+
+        if not self.options['public_graphite_url']:
+            self.options['public_graphite_url'] = self.options['graphite_url']
+
+        LOGGER.setLevel(_get_numeric_log_level(self.options.get('logging', 'info')))
+        registry.clean()
+
+        self.handlers = {'warning': set(), 'critical': set(), 'normal': set()}
+        self.reinit_handlers('warning')
+        self.reinit_handlers('critical')
+        self.reinit_handlers('normal')
+
+        for alert in list(self.alerts):
+            alert.stop()
+            self.alerts.remove(alert)
+
+        self.alerts = set()
+        for opts in self.options.get('alerts'):
+            opts['source'] = 'scanner'
+            opts.setdefault('scan_step', self.options.get('scan_step'))
+            opts.setdefault('scan_span', self.options.get('scan_span'))
+            opts['interval'] = opts['scan_step']
+
+            self.alerts.add(BaseAlert.get(self, **opts))
+
+        LOGGER.debug('Loaded with options:')
+        LOGGER.debug(json.dumps(self.options, indent=2))
+
+        return self
+
+    @gen.coroutine
+    def _scan(self):
+        yield [alert.load() for alert in self.alerts]
+
+        LOGGER.info('All scans are done')
+        self.stop()
+        raise gen.Return(True)

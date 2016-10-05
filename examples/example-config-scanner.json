@@ -1,0 +1,119 @@
+{
+    "logging": "DEBUG",
+    "graphite_url": "http://charthouse-render.caida.org:8080",
+    "charthouse_url": "https://charthouse.caida.org",
+    "default_nan_value": null,
+
+    "request_timeout": 120,
+    "connect_timeout": 120,
+
+    "critical_handlers": ["log"],
+    "warning_handlers": ["log"],
+    "normal_handlers": ["log"],
+    "smtp": {
+        "use_tls": false,
+        "host": "mail.caida.org",
+        "from": "charthouse-alerts@caida.org",
+        "to": [
+            "alistair@caida.org",
+            "simon@caida.org"
+        ]
+    },
+    "kafka": {
+        "brokers": "dyn46.caida.org:9092",
+        "topic_prefix": "watchtower-production"
+    },
+
+    "alerts": [
+        // COUNTRY-LEVEL
+        {
+            "fqid": "bgp.v4.visibility_threshold.min_50%_ff_peer_asns.visible_slash24_cnt",
+            "name": "BGP /24s per country (min 50% ff-peer-ASNs)",
+            "ignore_alerted_history": true,
+            "method": "minimum",
+            "history_method": "median",
+            "history_size": "1day",
+
+            "scan_from": 1474462034, // Inclusive
+            "scan_until": 1474466034, // Exclusive
+            "scan_step": "5m", // If the step is larger than the last sliding window, it is not checked
+            "scan_span": "1m",
+
+            "queries": [
+                "bgp.prefix-visibility.geo.netacuity.*.*.v4.visibility_threshold.min_50%_ff_peer_asns.visible_slash24_cnt"
+            ],
+            "rules": [
+                "critical: < historical * 0.5",
+                "warning: < historical * 0.99"
+            ]
+        },
+        {
+            "fqid": "active.trinarkular.team-1.down_slash24_cnt",
+            "name": "Trinarkular down /24s per country (Team 1)",
+            "ignore_alerted_history": true,
+            "method": "maximum",
+            "history_method": "median",
+            "history_size": "2day",
+
+            "scan_from": 1474462034,
+            "scan_until": 1474466034,
+            "scan_step": "5m",
+            "scan_span": "1m",
+
+            "queries": [
+                // current is # down /24s, history is (down + (up * .1))
+                {
+                    "current": "sortByName(groupByNodes(active.trinarkular.geo.netacuity.*.*.probers.team-1.caida-sdsc.*.down_slash24_cnt, \"sum\", 4, 5))",
+                    "history": "sortByName(sumSeriesArrays(sortByName(groupByNodes(active.trinarkular.geo.netacuity.*.*.probers.team-1.caida-sdsc.*.down_slash24_cnt, \"sum\", 4, 5)), sortByName(scale(groupByNodes(active.trinarkular.geo.netacuity.*.*.probers.team-1.caida-sdsc.*.up_slash24_cnt, \"sum\", 4, 5), 0.15))))"
+                }
+            ],
+            "rules": [
+                "critical: > 5 AND > historical * 1.2",
+                "warning: > 5 AND > historical * 1.1"
+            ]
+        },
+        {
+            "fqid": "darknet.ucsd-nt.non-erratic.uniq_src_ip",
+            "name": "Telescope source IPs per country (UCSD-NT)",
+            "ignore_alerted_history": true,
+            "method": "minimum",
+            "history_method": "median",
+            "history_size": "7day",
+
+            "scan_from": 1474462034,
+            "scan_until": 1474466034,
+            "scan_step": "5m",
+            "scan_span": "1m",
+
+            "queries": [
+                "darknet.ucsd-nt.non-erratic.geo.netacuity.*.*.uniq_src_ip"
+            ],
+            "rules": [
+                "critical: > 15 AND < historical * 0.1",
+                "warning: > 15 AND < historical * 0.2"
+            ]
+        },
+        // REGION-LEVEL (add this as query to country-level?)
+        {
+            "fqid": "bgp.v4.visibility_threshold.min_50%_ff_peer_asns.visible_slash24_cnt",
+            "name": "BGP /24s per region (min 50% ff-peer-ASNs)",
+            "ignore_alerted_history": true,
+            "method": "minimum",
+            "history_method": "median",
+            "history_size": "1day",
+
+            "scan_from": 1474462034,
+            "scan_until": 1474466034,
+            "scan_step": "5m",
+            "scan_span": "1m",
+
+            "queries": [
+                "bgp.prefix-visibility.geo.netacuity.*.*.*.v4.visibility_threshold.min_50%_ff_peer_asns.visible_slash24_cnt"
+            ],
+            "rules": [
+                "critical: < historical * 0.5",
+                "warning: < historical * 0.99"
+            ]
+        }
+    ]
+}
