@@ -196,8 +196,8 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         for current, history in zip(current_records, history_records):
             cval = self._get_record_attr(current)
             hval = self._get_record_attr(history)
-            LOGGER.debug("%s CURRENT [%s]: %s", self.name, current.target, cval)
-            LOGGER.debug("%s HISTORY [%s]: %s", self.name, history.target, hval)
+            #LOGGER.debug("%s CURRENT [%s]: %s", self.name, current.target, cval)
+            #LOGGER.debug("%s HISTORY [%s]: %s", self.name, history.target, hval)
             if cval is None:
                 nones.append((current, cval, None))
             else:
@@ -250,7 +250,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         rvalue = expr['value']
         if rvalue == HISTORICAL:
             rvalue = self.get_history_val(target)
-            LOGGER.debug("%s HISTORY VAL: %s" % (target, rvalue))
+            #LOGGER.debug("%s HISTORY VAL: %s" % (target, rvalue))
 
         if rvalue is not None:
             rvalue = expr['mod'](rvalue)
