@@ -83,6 +83,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         """Initialize alert."""
         self.reactor = reactor
         self.options = options
+        hc.AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
         self.client = hc.AsyncHTTPClient()
 
         try:
