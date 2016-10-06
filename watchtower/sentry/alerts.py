@@ -385,6 +385,13 @@ class GraphiteAlert(BaseAlert):
                     else:
                         self.check(current_records, history_records)
                         self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+                except hc.HttpError as e:
+                    LOGGER.exception(e)
+                    self.notify(
+                        self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
+                    resp = e.response
+                    if resp:
+                        LOGGER.exception(resp.body)
                 except Exception as e:
                     LOGGER.exception(e)
                     self.notify(
