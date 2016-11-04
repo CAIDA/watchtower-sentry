@@ -1,5 +1,6 @@
 from datetime import datetime
 import utils
+from json import dumps
 
 class GraphiteRecord(object):
 
@@ -62,9 +63,5 @@ class GraphiteRecord(object):
         :param str value:
         """
         if self.default_nan_value is None:
-            if value.lower() in ('null', 'none'):
-                return True
-        else:
-            if str(self.default_nan_value) == value:
-                return True
-        return False
+            return value.lower() in ('null', 'none', 'nil', 'nan', 'undefined')
+        return dumps(self.default_nan_value) == value:
