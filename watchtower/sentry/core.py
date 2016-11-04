@@ -50,7 +50,7 @@ class Reactor(object):
         'send_initial': False,
         'until': '0second',
         'warning_handlers': ['log', 'smtp'],
-        'default_nan_value': 0,
+        'default_nan_value': None,
         'ignore_nan': False,
         'loading_error': 'critical',
         'ignore_alerted_history': False,

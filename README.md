@@ -115,9 +115,10 @@ The default options are:
         // Send initial values (Send current values when reactor starts)
         "send_initial": true,
 
-        // used together to ignore the missing value
-        "default_nan_value": -1,
+        // Used together to ignore the missing value
         "ignore_nan": false,
+        // What kind of values should be regarded as NaN
+        "default_nan_value": null,
 
         // Default alerts (see configuration below)
         "alerts": [],
