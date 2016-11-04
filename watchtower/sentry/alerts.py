@@ -103,7 +103,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         return hash(self.name) ^ hash(self.source)
 
     def __eq__(self, other):
-        """Check that other alert iis the same."""
+        """Check that other alert is the same."""
         return hash(self) == hash(other)
 
     def __str__(self):
@@ -185,7 +185,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
     def check(self, current_records, history_records):
         """Check current value."""
-        nones, normals = [], []
+        no_datas, normals = [], []
         violations = {}
 
         if len(current_records) != len(history_records):
@@ -199,7 +199,8 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
             #LOGGER.debug("%s CURRENT [%s]: %s", self.name, current.target, cval)
             #LOGGER.debug("%s HISTORY [%s]: %s", self.name, history.target, hval)
             if cval is None:
-                nones.append((current, cval, None))
+                if current.no_data:
+                    no_datas.append((current, None, None))
             else:
                 for rule in self.rules:
                     if self.evaluate_rule(rule, cval, current.target):
@@ -211,7 +212,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
                     normals.append((current, cval, None))
                     self.history[current.target].append(hval)
 
-        self.notify_batch(self.no_data, nones)
+        self.notify_batch(self.no_data, no_datas)
         for level, data in violations.items():
             self.notify_batch(level, data)
         self.notify_batch('normal', normals)
