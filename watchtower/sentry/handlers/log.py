@@ -21,4 +21,11 @@ class LogHandler(AbstractHandler):
 
     def notify_batch(self, level, alert, ntype, data):
         for (record, value, rule) in data:
-            self.notify(level, alert, value, target=record.target, ntype=ntype, rule=rule)
+            addtional_text = 'At time: {}'.format(alert.get_record_time(record))
+            self.notify(level,
+                        alert,
+                        value,
+                        target=record.target,
+                        ntype=ntype,
+                        rule=rule,
+                        addtional_text=addtional_text)
