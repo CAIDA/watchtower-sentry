@@ -64,4 +64,4 @@ class GraphiteRecord(object):
         """
         if self.default_nan_value is None:
             return value.lower() in ('null', 'none', 'nil', 'nan', 'undefined')
-        return dumps(self.default_nan_value) == value:
+        return dumps(self.default_nan_value) == value
