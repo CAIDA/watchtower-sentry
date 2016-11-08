@@ -56,7 +56,7 @@ class KafkaHandler(AbstractHandler):
             violations = [self.create_violation(alert, record.target,
                                                 value, rule)
                           for record, value, rule in data]
-            self.insert_alert(level, alert, data[0][0].get_end_time(),
+            self.insert_alert(level, alert, alert.get_record_time(data[0][0]),
                               violations)
         else:
             raise RuntimeError('Call notify() to insert error')

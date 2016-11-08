@@ -43,14 +43,14 @@ class AbstractHandler(_.with_metaclass(HandlerMeta)):
         self.init_handler()
         LOGGER.debug('Handler "%s" has inited: %s', self.name, self.options)
 
-    def get_short(self, level, alert, value, target=None, ntype=None, rule=None):
+    def get_short(self, level, alert, value, target=None, ntype=None, rule=None, **kwargs):
         tmpl = TEMPLATES[ntype]['short']
         return tmpl.generate(
-            level=level, reactor=self.reactor, alert=alert, value=value, target=target).strip()
+            level=level, reactor=self.reactor, alert=alert, value=value, target=target, **kwargs).strip()
 
-    def get_short_batch(self, level, alert, ntype):
+    def get_short_batch(self, level, alert, ntype, **kwargs):
         tmpl = TEMPLATES[ntype]['short-batch']
-        return tmpl.generate(level=level, reactor=self.reactor, alert=alert).strip()
+        return tmpl.generate(level=level, reactor=self.reactor, alert=alert, **kwargs).strip()
 
     def init_handler(self):
         """ Init configuration here."""
@@ -61,6 +61,9 @@ class AbstractHandler(_.with_metaclass(HandlerMeta)):
 
     def notify_batch(self, level, alert, ntype, data):
         raise NotImplementedError()
+
+    def __str__(self):
+        return self.name
 
 
 registry = HandlerMeta

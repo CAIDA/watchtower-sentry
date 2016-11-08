@@ -10,53 +10,68 @@ class GraphiteRecord(object):
         self.start_time = int(start_time)
         self.end_time = int(end_time)
         self.step = int(step)
+
         self.default_nan_value = default_nan_value
         self.ignore_nan = ignore_nan
-        raw_values = data.rsplit(',')
-        self.values = list(self._values(raw_values))
-        self.empty = len(values) == 0
-        self.no_data = len(raw_values) == 0
 
-    def _values(self, values):
-        for value in values:
+        raw_values = data.rsplit(',')
+        self.no_data = len(raw_values) == 0
+        self.series = self._make_series(raw_values)
+        self.empty = len(self.series) == 0
+
+    def _make_series(self, values):
+        series = []
+        for value, time in zip(values, range(self.start_time, self.end_time, self.step)):
             try:
                 if self.is_nan(value):
                     if not self.ignore_nan:
-                        yield 0.0
+                        series.append((0.0, time))
                 else:
-                    yield float(value)
+                    series.append((float(value), time))
             except ValueError:
                 continue
+        return series
 
     def get_end_time(self):
         return datetime.utcfromtimestamp(self.end_time)
 
-    @property
+    def get_start_time(self):
+        return datetime.utcfromtimestamp(self.start_time)
+
     def average(self):
-        return self.sum / len(self.values)
+        sum_pts, time = self.sum()
+        return sum_pts / len(self.series), time
 
-    @property
     def last_value(self):
-        return self.values[-1]
+        return self.series[-1]
 
-    @property
     def sum(self):
-        return sum(self.values)
+        vals, _ = zip(*self.series)
+        return sum(vals), self.start_time
 
-    @property
     def minimum(self):
-        return min(self.values)
+        return min(self.series)
 
-    @property
     def maximum(self):
-        return max(self.values)
+        return max(self.series)
 
-    @property
     def median(self):
         return self.percentile(50)
 
     def percentile(self, rank):
-        return utils.percentile(sorted(self.values), rank/100.0)
+        """
+        :param rank: Should be in [0, 100].
+        """
+        rank /= 100.0
+        sorted_series = sorted(self.series)
+
+        vals, _ = zip(*sorted_series)
+        val = utils.percentile(vals, rank)
+
+        k = int((len(vals) - 1) * rank)
+        _, time = sorted_series[k]
+
+        return val, time
 
     def is_nan(self, value):
         """
@@ -64,4 +79,4 @@ class GraphiteRecord(object):
         """
         if self.default_nan_value is None:
             return value.lower() in ('null', 'none', 'nil', 'nan', 'undefined')
-        return dumps(self.default_nan_value) == value:
+        return dumps(self.default_nan_value) == value

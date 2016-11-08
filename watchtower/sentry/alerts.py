@@ -194,23 +194,25 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
                              % (len(current_records), len(history_records)))
 
         for current, history in zip(current_records, history_records):
-            cval = self._get_record_attr(current)
-            hval = self._get_record_attr(history)
+            cval = self.get_record_value(current)
+            hval = self.get_record_value(history)
             #LOGGER.debug("%s CURRENT [%s]: %s", self.name, current.target, cval)
             #LOGGER.debug("%s HISTORY [%s]: %s", self.name, history.target, hval)
             if cval is None:
-                if current.no_data:
+                if current.no_data:  # in case all values are null yet there is data
                     no_datas.append((current, None, None))
             else:
                 for rule in self.rules:
                     if self.evaluate_rule(rule, cval, current.target):
                         violations.setdefault(rule['level'], []).append((current, cval, rule))
                         if not self.options['ignore_alerted_history']:
-                            self.history[current.target].append(hval)
+                            if hval is not None:
+                                self.history[current.target].append(hval)
                         break
                 else:
                     normals.append((current, cval, None))
-                    self.history[current.target].append(hval)
+                    if hval is not None:
+                        self.history[current.target].append(hval)
 
         self.notify_batch(self.no_data, no_datas)
         for level, data in violations.items():
@@ -307,18 +309,27 @@ class GraphiteAlert(BaseAlert):
         """Configure the alert."""
         super(GraphiteAlert, self).configure(**options)
 
-        self.method = options.get('method', self.reactor.options['method'])
         self.default_nan_value = options.get(
             'default_nan_value', self.reactor.options['default_nan_value'])
         self.ignore_nan = options.get('ignore_nan', self.reactor.options['ignore_nan'])
+
+        self.method = options.get('method', self.reactor.options['method'])
         method_tokens = self.method.split(' ', 1)
-        assert method_tokens[0] in METHODS, "Method is invalid"
-        if method_tokens[0] == 'percentile':
-            try:
-                rank = float(method_tokens[1])
-            except ValueError:
-                raise ValueError('Invalid percentile: %s' % method_tokens[1])
-            assert 0 <= rank <= 100, 'Percentile must be in the range [0,100]'
+        self.method_name = method_tokens[0]
+        self.method_params = method_tokens[1:]
+        try:
+            assert self.method_name in METHODS, 'unknown method'
+            if self.method_name == 'percentile':
+                assert len(self.method_params) == 1, 'requires one parameter'
+                try:
+                    self.method_params = [float(self.method_params[0])]
+                except ValueError:
+                    raise ValueError('rank is not a float')
+                assert 0 <= rank <= 100, 'rank must be in the range [0,100]'
+            else:
+                assert not self.method_params, 'does not accept parameters'
+        except Exception as e:
+            raise "Invalid method '%s': %s" % self.method, e
 
         self.auth_username = self.reactor.options.get('auth_username')
         self.auth_password = self.reactor.options.get('auth_password')
@@ -352,7 +363,7 @@ class GraphiteAlert(BaseAlert):
                 self.current_query = query['current']
                 self.history_query = query['history']
                 self.current_url = url['current']
-                LOGGER.debug('%s: start checking: %s', self.name, query)
+                LOGGER.debug('%s: start checking: %s', self.name, url)
                 try:
                     response = yield self.client.fetch(url['current'],
                                                        auth_username=self.auth_username,
@@ -408,8 +419,11 @@ class GraphiteAlert(BaseAlert):
     def _graphite_url(self, query, raw_data=False, graphite_url=None):
         query = escape.url_escape(query)
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
-        url = "{base}/render/?target={query}&from=-{time_window}&until=-{until}".format(
-            base=graphite_url, query=query, time_window=self.time_window, until=self.until)
+        now = mktime(datetime.now().timetuple())
+        since = int(now - parse_interval(self.time_window) / 1e3)
+        until = max(now, int(now - parse_interval(self.until) / 1e3))
+        url = "{base}/render/?target={query}&from={time_window}&until={until}".format(
+            base=graphite_url, query=query, time_window=since, until=until)
         if raw_data:
             url = "{0}&rawData=true".format(url)
         return url
@@ -424,16 +438,17 @@ class GraphiteAlert(BaseAlert):
         }
         return urls
 
-    def _get_record_attr(self, record):
+    def get_record_value(self, record):
         if record.empty:
             return None
+        val, _ = getattr(record, self.method_name)(*self.method_params)
+        return val
 
-        method_tokens = self.method.split(' ', 1)
-        if method_tokens[0] == 'percentile':
-            return record.percentile(float(method_tokens[1]))
-        else:
-            return getattr(record, self.method)
-
+    def get_record_time(self, record):
+        if record.empty:
+            return record.get_start_time()
+        _, time = getattr(record, self.method_name)(*self.method_params)
+        return time
 
 class CharthouseAlert(GraphiteAlert):
 
@@ -491,13 +506,16 @@ class CharthouseScanner(CharthouseAlert):
             t = self.scan_from + i * self.scan_step - 1
             self.time_window, self.until = int(t), int(t + self.scan_span)
             self.urls = [self._graphite_urls(
-                query, graphite_url=graphite_url, raw_data=True) for query in self.queries]
+                query, graphite_url=graphite_url) for query in self.queries]
             LOGGER.debug('%s: scanning from %s to %s', self.name, self.time_window, self.until)
 
             yield super(CharthouseScanner, self).load()
 
         raise gen.Return(True)
 
-    def _graphite_url(self, *args, **kwargs):
-        return super(CharthouseScanner, self)._graphite_url(*args, **kwargs) \
-            .replace('&from=-', '&from=').replace('&until=-', '&until=')
+    def _graphite_url(self, query, raw_data=False, graphite_url=None):
+        return "{base}/render/?target={query}&from={since}&until={until}&rawData=true".format(
+            base=graphite_url,
+            query=escape.url_escape(query),
+            since=self.time_window,
+            until=self.until)

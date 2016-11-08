@@ -144,19 +144,33 @@ class Reactor(object):
 
     def notify(self, level, alert, value, target=None, ntype=None, rule=None):
         """ Provide the event to the handlers. """
-
-        LOGGER.info('Notify %s:%s:%s:%s', level, alert, value, target or "")
-
         if ntype is None:
             ntype = alert.source
 
-        for handler in self.handlers.get(level, []):
+        handlers = self.handlers.get(level, [])
+
+        LOGGER.info('Notifying %s handler(s)%s with %s:%s:%s:%s',
+                    len(handlers),
+                    ':' + ','.join(map(str, handlers)) if handlers else '',
+                    level,
+                    alert,
+                    value,
+                    target or '')
+
+        for handler in handlers:
             handler.notify(level, alert, value, target=target, ntype=ntype, rule=rule)
 
     def notify_batch(self, level, alert, data):
-        LOGGER.info('Notify %s:%s:%s entries', level, alert, len(data))
+        handlers = self.handlers.get(level, [])
 
-        for handler in self.handlers.get(level, []):
+        LOGGER.info('Notifying %s handler(s)%s with %s:%s:%s entries',
+                    len(handlers),
+                    ':' + ','.join(map(str, handlers)) if handlers else '',
+                    level,
+                    alert,
+                    len(data))
+
+        for handler in handlers:
             handler.notify_batch(level, alert, alert.source, data)
 
 _LOG_LEVELS = {
