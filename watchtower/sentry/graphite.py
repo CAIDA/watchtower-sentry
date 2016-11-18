@@ -19,6 +19,13 @@ class GraphiteRecord(object):
         self.series = self._make_series(raw_values)
         self.empty = len(self.series) == 0
 
+    def __str__(self):
+        content = [self.target, self.start_time, self.end_time, self.step]
+        return '({})'.format(', '.join(map(str, content)))
+
+    def __repr__(self):
+        return 'GraphiteRecord' + str(self)
+
     def _make_series(self, values):
         series = []
         for value, time in zip(values, range(self.start_time, self.end_time, self.step)):
