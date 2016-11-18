@@ -329,7 +329,7 @@ class GraphiteAlert(BaseAlert):
             else:
                 assert not self.method_params, 'does not accept parameters'
         except Exception as e:
-            raise "Invalid method '%s': %s" % self.method, e
+            raise ValueError("Invalid method '{}': {}".format(self.method, e))
 
         self.auth_username = self.reactor.options.get('auth_username')
         self.auth_password = self.reactor.options.get('auth_password')
@@ -390,6 +390,7 @@ class GraphiteAlert(BaseAlert):
                                                           self.ignore_nan)
                                            for line in response.buffer]
 
+                    LOGGER.debug('%s recieved %s records', self.name, len(current_records) + len(history_records))
                     if len(current_records) == 0 or len(history_records) == 0:
                         self.notify(self.loading_error,
                                     'Loading error: Server returned an empty response',
@@ -448,7 +449,7 @@ class GraphiteAlert(BaseAlert):
         if record.empty:
             return record.get_start_time()
         _, time = getattr(record, self.method_name)(*self.method_params)
-        return time
+        return datetime.utcfromtimestamp(time)
 
 class CharthouseAlert(GraphiteAlert):
 
@@ -484,7 +485,7 @@ class CharthouseScanner(CharthouseAlert):
         super(CharthouseScanner, self).configure(**options)
 
         self.scan_from, self.scan_until = map(options.get, ('scan_from', 'scan_until'))
-        assert self.scan_from and self.scan_until and self.scan_from < self.scan_until, \
+        assert self.scan_from and self.scan_until and (0 <= self.scan_from < self.scan_until), \
             'Invalid scanning start and end time'
 
         try:
@@ -493,6 +494,7 @@ class CharthouseScanner(CharthouseAlert):
         except Exception as e:
             LOGGER.exception(e)
             raise AssertionError('Invalid scanning step or span')
+        assert self.scan_step > 0 and self.scan_span > 0, 'Invalid scanning span or step'
 
     def start(self):
         raise RuntimeError('Scanner does not have periodic callbacks')
@@ -504,10 +506,11 @@ class CharthouseScanner(CharthouseAlert):
 
         for i in range(steps):
             t = self.scan_from + i * self.scan_step - 1
-            self.time_window, self.until = int(t), int(t + self.scan_span)
+            self.time_window, self.until = max(0, int(t - self.scan_span)), int(t)
             self.urls = [self._graphite_urls(
                 query, graphite_url=graphite_url) for query in self.queries]
-            LOGGER.debug('%s: scanning from %s to %s', self.name, self.time_window, self.until)
+            LOGGER.debug('%s: scanning from %s to %s', self.name,
+                         *map(datetime.utcfromtimestamp, (self.time_window, self.until)))
 
             yield super(CharthouseScanner, self).load()
 

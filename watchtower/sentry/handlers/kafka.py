@@ -50,7 +50,7 @@ class KafkaHandler(AbstractHandler):
     def notify_batch(self, level, alert, ntype, data):
         """Insert an alert with multiple targets"""
         # Should be called only when there is no error
-        LOGGER.debug('Handler (%s-batch) %s', self.name, level)
+        # LOGGER.debug('Handler (%s-batch) %s', self.name, level)
 
         if ntype == alert.source:
             violations = [self.create_violation(alert, record.target,
@@ -62,7 +62,7 @@ class KafkaHandler(AbstractHandler):
             raise RuntimeError('Call notify() to insert error')
 
     def insert_alert(self, level, alert, time, violations):
-        LOGGER.debug('Alert expression: %s' % alert.current_query)
+        # LOGGER.debug('Alert expression: %s' % alert.current_query)
         self.producer.produce_alert(
             watchtower.alert.Alert(
                 fqid=alert.fqid,

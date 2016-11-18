@@ -78,3 +78,5 @@ pip-selfcheck.json
 sftp-config.json
 .idea/
 
+
+config/scanner.json
