@@ -421,7 +421,7 @@ class GraphiteAlert(BaseAlert):
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
         now = mktime(datetime.now().timetuple())
         since = int(now - parse_interval(self.time_window) / 1e3)
-        until = max(now, int(now - parse_interval(self.until) / 1e3))
+        until = int(max(now, now - parse_interval(self.until) / 1e3))
         url = "{base}/render/?target={query}&from={time_window}&until={until}".format(
             base=graphite_url, query=query, time_window=since, until=until)
         if raw_data:
@@ -469,7 +469,7 @@ class CharthouseAlert(GraphiteAlert):
         now = mktime(datetime.now().timetuple())
         default_window = timedelta(hours=6).total_seconds()
         since = int(now - parse_interval(self.time_window) / 1e3 - default_window)
-        until = max(now, int(now - parse_interval(self.until) / 1e3 + default_window))
+        until = int(max(now, now - parse_interval(self.until) / 1e3 + default_window))
 
         url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
             base=charthouse_url, query=query, since=since, until=until)
