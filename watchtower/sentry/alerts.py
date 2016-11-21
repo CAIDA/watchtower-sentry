@@ -365,30 +365,12 @@ class GraphiteAlert(BaseAlert):
                 self.current_url = url['current']
                 LOGGER.debug('%s: start checking: %s', self.name, url)
                 try:
-                    response = yield self.client.fetch(url['current'],
-                                                       auth_username=self.auth_username,
-                                                       auth_password=self.auth_password,
-                                                       request_timeout=self.request_timeout,
-                                                       connect_timeout=self.connect_timeout)
-
-                    current_records = [GraphiteRecord(line.decode('utf-8'),
-                                                      self.default_nan_value,
-                                                      self.ignore_nan)
-                                       for line in response.buffer]
+                    current_records = yield self._fetch_records(url['current'])
 
                     if query['current'] == query['history']:
                         history_records = current_records
                     else:
-                        response = yield self.client.fetch(url['history'],
-                                                           auth_username=self.auth_username,
-                                                           auth_password=self.auth_password,
-                                                           request_timeout=self.request_timeout,
-                                                           connect_timeout=self.connect_timeout)
-
-                        history_records = [GraphiteRecord(line.decode('utf-8'),
-                                                          self.default_nan_value,
-                                                          self.ignore_nan)
-                                           for line in response.buffer]
+                        history_records = yield self._fetch_records(url['history'])
 
                     LOGGER.debug('%s recieved %s records', self.name, len(current_records) + len(history_records))
                     if len(current_records) == 0 or len(history_records) == 0:
@@ -422,7 +404,7 @@ class GraphiteAlert(BaseAlert):
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
         now = mktime(datetime.now().timetuple())
         since = int(now - parse_interval(self.time_window) / 1e3)
-        until = int(max(now, now - parse_interval(self.until) / 1e3))
+        until = max(now, int(now - parse_interval(self.until) / 1e3))
         url = "{base}/render/?target={query}&from={time_window}&until={until}".format(
             base=graphite_url, query=query, time_window=since, until=until)
         if raw_data:
@@ -451,6 +433,18 @@ class GraphiteAlert(BaseAlert):
         _, time = getattr(record, self.method_name)(*self.method_params)
         return datetime.utcfromtimestamp(time)
 
+    @gen.coroutine
+    def _fetch_records(self, request):
+        response = yield self.client.fetch(request,
+                                           auth_username=self.auth_username,
+                                           auth_password=self.auth_password,
+                                           request_timeout=self.request_timeout,
+                                           connect_timeout=self.connect_timeout)
+        return [GraphiteRecord.from_string(line.decode('utf-8'),
+                                           self.default_nan_value,
+                                           self.ignore_nan)
+                for line in response.buffer]
+
 class CharthouseAlert(GraphiteAlert):
 
     source = 'charthouse'
@@ -470,55 +464,8 @@ class CharthouseAlert(GraphiteAlert):
         now = mktime(datetime.now().timetuple())
         default_window = timedelta(hours=6).total_seconds()
         since = int(now - parse_interval(self.time_window) / 1e3 - default_window)
-        until = int(max(now, now - parse_interval(self.until) / 1e3 + default_window))
+        until = max(now, int(now - parse_interval(self.until) / 1e3 + default_window))
 
         url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
             base=charthouse_url, query=query, since=since, until=until)
         return url
-
-
-class CharthouseScanner(CharthouseAlert):
-
-    source = 'scanner'
-
-    def configure(self, **options):
-        super(CharthouseScanner, self).configure(**options)
-
-        self.scan_from, self.scan_until = map(options.get, ('scan_from', 'scan_until'))
-        assert self.scan_from and self.scan_until and (0 <= self.scan_from < self.scan_until), \
-            'Invalid scanning start and end time'
-
-        try:
-            self.scan_step, self.scan_span = (parse_interval(options.get(s)) / 1e3 for s in
-                ('scan_step', 'scan_span'))
-        except Exception as e:
-            LOGGER.exception(e)
-            raise AssertionError('Invalid scanning step or span')
-        assert self.scan_step > 0 and self.scan_span > 0, 'Invalid scanning span or step'
-
-    def start(self):
-        raise RuntimeError('Scanner does not have periodic callbacks')
-
-    @gen.coroutine
-    def load(self):
-        graphite_url = self.reactor.options.get('graphite_url')
-        steps = int((self.scan_until - 1 - self.scan_from) / self.scan_step)
-
-        for i in range(steps):
-            t = self.scan_from + i * self.scan_step - 1
-            self.time_window, self.until = max(0, int(t - self.scan_span)), int(t)
-            self.urls = [self._graphite_urls(
-                query, graphite_url=graphite_url) for query in self.queries]
-            LOGGER.debug('%s: scanning from %s to %s', self.name,
-                         *map(datetime.utcfromtimestamp, (self.time_window, self.until)))
-
-            yield super(CharthouseScanner, self).load()
-
-        raise gen.Return(True)
-
-    def _graphite_url(self, query, raw_data=False, graphite_url=None):
-        return "{base}/render/?target={query}&from={since}&until={until}&rawData=true".format(
-            base=graphite_url,
-            query=escape.url_escape(query),
-            since=self.time_window,
-            until=self.until)
