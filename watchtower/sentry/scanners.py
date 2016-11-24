@@ -62,3 +62,61 @@ class CharthouseScanner(CharthouseAlert):
             query=escape.url_escape(query),
             since=since or self.time_window,
             until=until or self.until)
+
+    @gen.coroutine
+    def _fetch_records(self, request, **kwargs):
+        """Prefetch records for performance.
+        Notice that records fetched from cache are not necessarily the same as
+        those directly fetched from the server in some insignificant ways. For example,
+        with the same request, this method may return records with all values being None,
+        while the server could not return such records at all.
+        """
+        # Find cache for this request by its params
+        graphite_url, expression, since, until, raw_data = self._parse_request(request)
+        cached_since, cached_until, cache = self.records_cache[expression]
+        assert since >= cached_since, 'Time is going backwards!'
+
+        # Update cache if needed
+        if until > cached_until:
+            next_since = cached_until
+            next_until = max(until, cached_until + self.prefetch_size)
+            next_cache = {}
+
+            # Discard old data
+            for record_name, record in cache.items():
+                trimmed_record = record.slice(cached_since, cached_until)
+                if not trimmed_record.no_data:
+                    next_cache[record_name] = trimmed_record
+
+            # Fetch data
+            next_url = self._graphite_url(query=expression,
+                                          raw_data=raw_data,
+                                          graphite_url=graphite_url,
+                                          since=next_since,
+                                          until=next_until)
+            next_records = yield super(CharthouseScanner, self)._fetch_records(next_url, **kwargs)
+
+            # Store new data
+            for record in next_records:
+                if record.target in next_cache:
+                    next_cache[record.target].extend(record)
+                else:
+                    next_cache[record.target] = record
+
+            # Update states
+            self.records_cache[expression] = next_since, next_until, next_cache
+
+        # Return data from cache
+        return [r.slice(since, until) for r in self.records_cache.values()]
+
+    @staticmethod
+    def _parse_request(request):
+        url = request.url if isinstance(request, hc.HTTPRequest) else request
+        o = urlparse(url)
+        graphite_url = o.netloc
+        params = parse_qs(o)
+        expression = escape.url_unescape(params['target'])
+        since = int(params['since'])
+        until = int(params['until'])
+        raw_data = params.get('rawData') in ('', 'true')
+        return graphite_url, expression, since, until, raw_data
