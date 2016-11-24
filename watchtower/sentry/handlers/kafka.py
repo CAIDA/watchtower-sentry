@@ -53,7 +53,7 @@ class KafkaHandler(AbstractHandler):
         if ntype == alert.source:
             violations = [self.create_violation(alert, record, value, rule)
                           for record, value, rule in data]
-            self.insert_alert(level, alert, alert.get_last_query_time(), violations)
+            self.insert_alert(level, alert, alert.get_current_query_time(), violations)
         else:
             raise RuntimeError('Call notify() to insert error without violations data')
 
@@ -76,7 +76,7 @@ class KafkaHandler(AbstractHandler):
         self.producer.produce_error(watchtower.alert.Error(
             fqid=alert.fqid,
             name=alert.name,
-            time=calendar.timegm(alert.get_last_query_time().timetuple()),
+            time=calendar.timegm(alert.get_current_query_time().timetuple()),
             expression=alert.current_query,
             history_expression=alert.history_query,
             type=ntype or 'Unknown',  # Should be undefined behavior

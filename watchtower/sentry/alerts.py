@@ -290,18 +290,19 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         return True
 
     def format_time_with_offset(self):
-        return format_time(self.get_last_query_time())
+        return format_time(self.get_current_query_time())
 
     def _set_absolute_time_range(self):
-        self.last_now = timegm(datetime.utcnow().timetuple())
-        self.last_since = int(self.last_now - parse_interval(self.time_window) / 1e3)
-        self.last_until = int(max(self.last_now, self.last_now - parse_interval(self.until) / 1e3))
+        self.current_now = timegm(datetime.utcnow().timetuple())
+        self.current_from = int(self.current_now - parse_interval(self.time_window) / 1e3)
+        self.current_until = int(max(self.current_now,
+                                     self.current_now - parse_interval(self.until) / 1e3))
 
-    def get_last_query_time(self):
+    def get_current_query_time(self):
         """
         :return datetime:
         """
-        return datetime.utcfromtimestamp(self.last_since)
+        return datetime.utcfromtimestamp(self.current_from)
 
     def load(self):
         """Load from remote."""
@@ -372,15 +373,16 @@ class GraphiteAlert(BaseAlert):
                 self.current_query = query['current']
                 self.history_query = query['history']
                 self.current_url = url['current']
-                LOGGER.debug('%s: start checking from %s to %s. Current url: "%s". History url: "%s"',
-                    self.name, self.last_since, self.last_until, url['current'], url['history'])
+                LOGGER.debug('%s: start checking %s from %s to %s. Current url: "%s". History url: "%s"',
+                    self.name, self.current_query, self.current_from, self.current_until,
+                    self.current_url, url['history'])
                 try:
                     current_records = yield self._fetch_records(url['current'])
 
                     if query['current'] == query['history']:
                         history_records = current_records
                     else:
-                        history_records = yield self._fetch_records(url['history'])
+                        history_records = yield self._fetch_records(url['history'], history=True)
 
                     LOGGER.debug('%s recieved %s records', self.name, len(current_records) + len(history_records))
                     if len(current_records) == 0 or len(history_records) == 0:
@@ -396,19 +398,21 @@ class GraphiteAlert(BaseAlert):
                                     ntype='common')
                 except hc.HTTPError as e:
                     LOGGER.exception(e)
+                    resp = e.response
+                    if resp:
+                        LOGGER.exception(resp.body)
                     self.notify(self.loading_error,
                                 'Loading error: %s' % e,
                                 target='loading {}'.format(query),
                                 ntype='common')
-                    resp = e.response
-                    if resp:
-                        LOGGER.exception(resp.body)
                 except Exception as e:
                     LOGGER.exception(e)
                     self.notify(self.loading_error,
                                 'Loading error: %s' % e,
                                 target='loading {}'.format(query),
                                 ntype='common')
+
+                yield self.relax()
 
             self.waiting = False
 
@@ -419,8 +423,8 @@ class GraphiteAlert(BaseAlert):
     def _graphite_url(self, query, raw_data=False, graphite_url=None):
         query = escape.url_escape(query)
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
-        url = "{base}/render/?target={query}&from={since}&until={until}".format(
-            base=graphite_url, query=query, since=self.last_since, until=self.last_until)
+        url = "{base}/render/?target={query}&from={_from}&until={until}".format(
+            base=graphite_url, query=query, _from=self.current_from, until=self.current_until)
         if raw_data:
             url = "{0}&rawData=true".format(url)
         return url
@@ -448,15 +452,16 @@ class GraphiteAlert(BaseAlert):
         return datetime.utcfromtimestamp(time)
 
     @gen.coroutine
-    def _fetch_records(self, request):
+    def _fetch_records(self, request, **kwargs):
         response = yield self.client.fetch(request,
                                            auth_username=self.auth_username,
                                            auth_password=self.auth_password,
                                            request_timeout=self.request_timeout,
-                                           connect_timeout=self.connect_timeout)
+                                           connect_timeout=self.connect_timeout,
+                                           **kwargs)
         records = [GraphiteRecord.from_string(line.decode('utf-8'),
-                                              self.default_nan_value,
-                                              self.ignore_nan)
+                                              default_nan_value=self.default_nan_value,
+                                              ignore_nan=self.ignore_nan)
                    for line in response.buffer]
         raise gen.Return(records)
 
@@ -478,9 +483,9 @@ class CharthouseAlert(GraphiteAlert):
         # Make width of span configurable?
         # Must use timestamp with from & until instead of relative time in emails
         default_window = timedelta(hours=6).total_seconds()
-        since = max(0, self.last_since - default_window)
-        until = max(self.last_now, self.last_until + default_window)
+        _from = max(0, self.current_from - default_window)
+        until = max(self.current_now, self.current_until + default_window)
 
-        url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
-            base=charthouse_url, query=query, since=since, until=until)
+        url = "{base}/explorer#expression={query}&from={_from}&until={until}".format(
+            base=charthouse_url, query=query, _from=_from, until=until)
         return url

@@ -35,10 +35,12 @@ class CharthouseScanner(CharthouseAlert):
 
         super(CharthouseScanner, self).configure(**options)
 
-        self.prefetch_size = parse_interval(
-            options.get('prefetch_size', self.reactor.options['prefetch_size'])) / 1e3
-        # {target: (since, until, {record_name: record})}
-        self.records_cache = defaultdict(lambda: (-1, -1, {}))
+        self.prefetch_size = int(parse_interval(
+            options.get('prefetch_size', self.reactor.options['prefetch_size'])) / 1e3)
+
+        actual_scan_from = self.current_from
+        # {target: (from, until, {record_name: record})}
+        self.records_cache = defaultdict(lambda: (-1, actual_scan_from, {}))
 
     def start(self):
         raise RuntimeError('Scanner does not have periodic callbacks')
@@ -51,19 +53,19 @@ class CharthouseScanner(CharthouseAlert):
         for self.scan_idx in range(steps):
             self._set_absolute_time_range()
             self.urls = [self._graphite_urls(
-                query, graphite_url=graphite_url) for query in self.queries]
+                query, graphite_url=graphite_url, raw_data=True) for query in self.queries]
             yield super(CharthouseScanner, self).load()
 
         raise gen.Return(True)
 
     def _set_absolute_time_range(self):
         t = self.scan_from + self.scan_idx * self.scan_step
-        self.last_since = max(0, int(t - self.scan_span))
-        self.last_until = int(t)
-        self.last_now = timegm(datetime.utcnow().timetuple())
+        self.current_from = max(0, int(t - self.scan_span))
+        self.current_until = int(t)
+        self.current_now = timegm(datetime.utcnow().timetuple())
 
     @gen.coroutine
-    def _fetch_records(self, request, **kwargs):
+    def _fetch_records(self, request, history=False, **kwargs):
         """Prefetch records for performance.
         Notice that records fetched from cache are not necessarily the same as
         those directly fetched from the server in some insignificant ways. For example,
@@ -71,28 +73,34 @@ class CharthouseScanner(CharthouseAlert):
         while the server could not return such records at all.
         """
         # Find cache for this request by its params
-        graphite_url, expression, since, until, raw_data = self._parse_request(request)
-        cached_since, cached_until, cache = self.records_cache[expression]
-        assert since >= cached_since, 'Time is going backwards!'
+        graphite_url, expression, raw_data = self._parse_request(request)
+        request_target = ':'.join([self.name, expression, 'history' if history else 'current'])
+        cached_from, cached_until, cache = self.records_cache[request_target]
+        LOGGER.debug('Fetching records: %s', request_target)
+        assert self.current_from >= cached_from, 'Time is going backwards!'
 
         # Update cache if needed
-        if until > cached_until:
-            next_since = cached_until
-            next_until = max(until, cached_until + self.prefetch_size)
+        if self.current_until > cached_until:
+            next_from = cached_until
+            next_until = max(self.current_until, cached_until + self.prefetch_size)
             next_cache = {}
+            LOGGER.debug('Loading new records into cache from %s to %s', next_from, next_until)
 
             # Discard old data
             for record_name, record in cache.items():
-                trimmed_record = record.slice(cached_since, cached_until)
+                trimmed_record = record.slice(cached_from, cached_until)
                 if not trimmed_record.no_data:
                     next_cache[record_name] = trimmed_record
 
             # Fetch data
-            next_url = self._graphite_url(query=expression,
-                                          raw_data=raw_data,
-                                          graphite_url=graphite_url,
-                                          since=next_since,
-                                          until=next_until)
+            last_from = self.current_from  # hax time range
+            last_until = self.current_until
+            self.current_from = next_from
+            self.current_until = next_until
+            next_url = self._graphite_url(
+                query=expression, raw_data=raw_data, graphite_url=graphite_url)
+            self.current_from = last_from  # recover time range
+            self.current_until = last_until
             next_records = yield super(CharthouseScanner, self)._fetch_records(next_url, **kwargs)
 
             # Store new data
@@ -103,10 +111,11 @@ class CharthouseScanner(CharthouseAlert):
                     next_cache[record.target] = record
 
             # Update states
-            self.records_cache[expression] = next_since, next_until, next_cache
+            self.records_cache[request_target] = next_from, next_until, next_cache
+            cached_from, cached_until, cache = self.records_cache[request_target]
 
         # Return data from cache
-        records = [r.slice(since, until) for r in self.records_cache.values()]
+        records = [r.slice(self.current_from, self.current_until) for r in cache.values()]
         raise gen.Return(records)
 
     @staticmethod
@@ -115,10 +124,8 @@ class CharthouseScanner(CharthouseAlert):
         o = urlparse(url)
         graphite_url = o.netloc
         params = parse_qs(o.query)
-        assert all(len(vs) == 1 for vs in map(params.get, ('target', 'from', 'until', 'rawData')) if vs), \
+        assert all(len(vs) == 1 for vs in map(params.get, ('target', 'rawData')) if vs), \
             'Exsit duplicate keys in query of request'
         expression = escape.url_unescape(params['target'][0])
-        since = int(params['from'][0])
-        until = int(params['until'][0])
         raw_data = params.get('rawData', [None])[0] in ('', 'true')
-        return graphite_url, expression, since, until, raw_data
+        return graphite_url, expression, raw_data

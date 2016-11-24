@@ -44,7 +44,7 @@ class SMTPHandler(AbstractHandler):
     def notify_batch(self, level, alert, ntype, data):
         LOGGER.debug("Handler (%s-batch) %s", self.name, level)
 
-        alert_time = alert.get_last_query_time()
+        alert_time = alert.get_current_query_time()
         msg = self.get_message(True,
             ntype=ntype, level=level, alert=alert, data=data, utils=utils, time=alert_time)
         msg['Subject'] = self.get_short_batch(level, alert, ntype)

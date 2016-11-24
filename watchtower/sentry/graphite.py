@@ -13,11 +13,11 @@ class GraphiteRecord(object):
         self.end_time = int(end_time)
         self.step = int(step)
 
-        self.values = raw_values
-        self._init_series()
-
         self.default_nan_value = default_nan_value
         self.ignore_nan = ignore_nan
+
+        self.values = raw_values
+        self._init_series()
 
     @classmethod
     def from_string(cls, metric_string, **kwargs):
