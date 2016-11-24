@@ -376,22 +376,29 @@ class GraphiteAlert(BaseAlert):
                     if len(current_records) == 0 or len(history_records) == 0:
                         self.notify(self.loading_error,
                                     'Loading error: Server returned an empty response',
-                                    target='loading',
+                                    target='loading {}'.format(query),
                                     ntype='emptyresp')
                     else:
                         self.check(current_records, history_records)
-                        self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+                        self.notify('normal',
+                                    'Metrics are loaded',
+                                    target='loading {}'.format(query),
+                                    ntype='common')
                 except hc.HTTPError as e:
                     LOGGER.exception(e)
-                    self.notify(
-                        self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
+                    self.notify(self.loading_error,
+                                'Loading error: %s' % e,
+                                target='loading {}'.format(query),
+                                ntype='common')
                     resp = e.response
                     if resp:
                         LOGGER.exception(resp.body)
                 except Exception as e:
                     LOGGER.exception(e)
-                    self.notify(
-                        self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
+                    self.notify(self.loading_error,
+                                'Loading error: %s' % e,
+                                target='loading {}'.format(query),
+                                ntype='common')
 
             self.waiting = False
 
