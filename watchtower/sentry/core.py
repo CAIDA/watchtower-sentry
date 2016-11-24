@@ -8,6 +8,7 @@ from tornado import ioloop, log, gen
 from .alerts import BaseAlert
 from .utils import parse_interval
 from .handlers import registry
+import scanners
 
 try:
     import yaml
@@ -220,7 +221,7 @@ class ScannerReactor(Reactor):
     def reinit(self, *args, **options):
         LOGGER.info('Read configuration')
 
-        self.options.update(scanner_defaults)
+        self.options.update(self.scanner_defaults)
         self.options.update(options)
 
         self.include_config(self.options.get('config'))

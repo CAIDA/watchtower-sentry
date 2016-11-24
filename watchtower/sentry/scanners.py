@@ -2,9 +2,9 @@
 
 from tornado import httpclient as hc, gen, log, escape
 
-from .alerts import CharthouseAlert, sliceable_deque
+from .alerts import CharthouseAlert
 from .utils import parse_interval
-from collections import deque, defaultdict
+from collections import defaultdict
 from datetime import datetime
 from urlparse import urlparse, parse_qs
 
@@ -107,16 +107,19 @@ class CharthouseScanner(CharthouseAlert):
             self.records_cache[expression] = next_since, next_until, next_cache
 
         # Return data from cache
-        return [r.slice(since, until) for r in self.records_cache.values()]
+        records = [r.slice(since, until) for r in self.records_cache.values()]
+        raise gen.Return(records)
 
     @staticmethod
     def _parse_request(request):
         url = request.url if isinstance(request, hc.HTTPRequest) else request
         o = urlparse(url)
         graphite_url = o.netloc
-        params = parse_qs(o)
-        expression = escape.url_unescape(params['target'])
-        since = int(params['since'])
-        until = int(params['until'])
-        raw_data = params.get('rawData') in ('', 'true')
+        params = parse_qs(o.query)
+        assert all(len(vs) == 1 for vs in map(params.get, ('target', 'from', 'until', 'rawData')) if vs), \
+            'Exsit duplicate keys in query of request'
+        expression = escape.url_unescape(params['target'][0])
+        since = int(params['from'][0])
+        until = int(params['until'][0])
+        raw_data = params.get('rawData', [None])[0] in ('', 'true')
         return graphite_url, expression, since, until, raw_data

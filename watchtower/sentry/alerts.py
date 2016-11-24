@@ -447,10 +447,11 @@ class GraphiteAlert(BaseAlert):
                                            auth_password=self.auth_password,
                                            request_timeout=self.request_timeout,
                                            connect_timeout=self.connect_timeout)
-        return [GraphiteRecord.from_string(line.decode('utf-8'),
-                                           self.default_nan_value,
-                                           self.ignore_nan)
-                for line in response.buffer]
+        records = [GraphiteRecord.from_string(line.decode('utf-8'),
+                                              self.default_nan_value,
+                                              self.ignore_nan)
+                   for line in response.buffer]
+        raise gen.Return(records)
 
 class CharthouseAlert(GraphiteAlert):
 
