@@ -7,6 +7,7 @@ from .utils import parse_interval
 from collections import defaultdict
 from datetime import datetime
 from urlparse import urlparse, parse_qs
+from calendar import timegm
 
 
 LOGGER = log.gen_log
@@ -17,19 +18,22 @@ class CharthouseScanner(CharthouseAlert):
     source = 'scanner'
 
     def configure(self, **options):
-        super(CharthouseScanner, self).configure(**options)
-
-        self.scan_from, self.scan_until = map(options.get, ('scan_from', 'scan_until'))
-        assert self.scan_from and self.scan_until and (0 <= self.scan_from < self.scan_until), \
-            'Invalid scanning start and end time'
-
         try:
+            self.scan_from, self.scan_until = map(options.get, ('scan_from', 'scan_until'))
+            assert self.scan_from and self.scan_until and \
+                (0 <= self.scan_from < self.scan_until), 'invalid scanning start and end time'
+
             self.scan_step, self.scan_span = (parse_interval(options.get(s)) / 1e3 for s in
                 ('scan_step', 'scan_span'))
+            assert self.scan_step > 0 and self.scan_span > 0, 'invalid scanning span or step'
+
         except Exception as e:
             LOGGER.exception(e)
-            raise AssertionError('Invalid scanning step or span')
-        assert self.scan_step > 0 and self.scan_span > 0, 'Invalid scanning span or step'
+            raise ValueError('Invalid options: {}'.format(e))
+
+        self.scan_idx = 0
+
+        super(CharthouseScanner, self).configure(**options)
 
         self.prefetch_size = parse_interval(
             options.get('prefetch_size', self.reactor.options['prefetch_size'])) / 1e3
@@ -44,24 +48,19 @@ class CharthouseScanner(CharthouseAlert):
         graphite_url = self.reactor.options.get('graphite_url')
         steps = int((self.scan_until - 1 - self.scan_from) / self.scan_step)
 
-        for i in range(steps):
-            t = self.scan_from + i * self.scan_step - 1
-            self.time_window, self.until = max(0, int(t - self.scan_span)), int(t)
+        for self.scan_idx in range(steps):
+            self._set_absolute_time_range()
             self.urls = [self._graphite_urls(
                 query, graphite_url=graphite_url) for query in self.queries]
-            LOGGER.debug('%s: scanning from %s to %s', self.name,
-                         *map(datetime.utcfromtimestamp, (self.time_window, self.until)))
-
             yield super(CharthouseScanner, self).load()
 
         raise gen.Return(True)
 
-    def _graphite_url(self, query, raw_data=False, graphite_url=None, since=None, until=None):
-        return "{base}/render/?target={query}&from={since}&until={until}&rawData=true".format(
-            base=graphite_url,
-            query=escape.url_escape(query),
-            since=since or self.time_window,
-            until=until or self.until)
+    def _set_absolute_time_range(self):
+        t = self.scan_from + self.scan_idx * self.scan_step
+        self.last_since = max(0, int(t - self.scan_span))
+        self.last_until = int(t)
+        self.last_now = timegm(datetime.utcnow().timetuple())
 
     @gen.coroutine
     def _fetch_records(self, request, **kwargs):

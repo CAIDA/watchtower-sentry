@@ -18,7 +18,7 @@ import math
 from collections import deque, defaultdict
 from itertools import islice
 from datetime import datetime, timedelta
-from time import mktime
+from calendar import timegm
 
 
 LOGGER = log.gen_log
@@ -160,6 +160,9 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         else:
             self.callback = ioloop.PeriodicCallback(self.load, interval)
 
+        # For recording accurate time of last request
+        self._set_absolute_time_range()
+
     def convert(self, value):
         """Convert self value."""
         return convert_to_format(value, self._format)
@@ -286,13 +289,19 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         self.state[target] = level
         return True
 
-    def format_time_with_offset(self, dt=None):
-        dt = self.get_time_with_offset(dt)
-        return format_time(dt)
+    def format_time_with_offset(self):
+        return format_time(self.get_last_query_time())
 
-    def get_time_with_offset(self, dt=None):
-        dt = dt or datetime.utcnow()
-        return dt - timedelta(milliseconds=parse_interval(self.until))
+    def _set_absolute_time_range(self):
+        self.last_now = timegm(datetime.utcnow().timetuple())
+        self.last_since = int(self.last_now - parse_interval(self.time_window) / 1e3)
+        self.last_until = int(max(self.last_now, self.last_now - parse_interval(self.until) / 1e3))
+
+    def get_last_query_time(self):
+        """
+        :return datetime:
+        """
+        return datetime.utcfromtimestamp(self.last_since)
 
     def load(self):
         """Load from remote."""
@@ -363,7 +372,8 @@ class GraphiteAlert(BaseAlert):
                 self.current_query = query['current']
                 self.history_query = query['history']
                 self.current_url = url['current']
-                LOGGER.debug('%s: start checking: %s', self.name, url)
+                LOGGER.debug('%s: start checking from %s to %s. Current url: "%s". History url: "%s"',
+                    self.name, self.last_since, self.last_until, url['current'], url['history'])
                 try:
                     current_records = yield self._fetch_records(url['current'])
 
@@ -409,11 +419,8 @@ class GraphiteAlert(BaseAlert):
     def _graphite_url(self, query, raw_data=False, graphite_url=None):
         query = escape.url_escape(query)
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
-        now = mktime(datetime.now().timetuple())
-        since = int(now - parse_interval(self.time_window) / 1e3)
-        until = max(now, int(now - parse_interval(self.until) / 1e3))
-        url = "{base}/render/?target={query}&from={time_window}&until={until}".format(
-            base=graphite_url, query=query, time_window=since, until=until)
+        url = "{base}/render/?target={query}&from={since}&until={until}".format(
+            base=graphite_url, query=query, since=self.last_since, until=self.last_until)
         if raw_data:
             url = "{0}&rawData=true".format(url)
         return url
@@ -453,6 +460,7 @@ class GraphiteAlert(BaseAlert):
                    for line in response.buffer]
         raise gen.Return(records)
 
+
 class CharthouseAlert(GraphiteAlert):
 
     source = 'charthouse'
@@ -469,10 +477,9 @@ class CharthouseAlert(GraphiteAlert):
         # Show a span of extra 12 hours around the window, centered
         # Make width of span configurable?
         # Must use timestamp with from & until instead of relative time in emails
-        now = mktime(datetime.now().timetuple())
         default_window = timedelta(hours=6).total_seconds()
-        since = int(now - parse_interval(self.time_window) / 1e3 - default_window)
-        until = max(now, int(now - parse_interval(self.until) / 1e3 + default_window))
+        since = max(0, self.last_since - default_window)
+        until = max(self.last_now, self.last_until + default_window)
 
         url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
             base=charthouse_url, query=query, since=since, until=until)
