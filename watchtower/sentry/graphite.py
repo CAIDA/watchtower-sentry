@@ -13,7 +13,7 @@ class GraphiteRecord(object):
         self.end_time = int(end_time)
         self.step = int(step)
 
-        self.default_nan_value = default_nan_value
+        self.default_nan_value = str(default_nan_value)
         self.ignore_nan = ignore_nan
 
         self.values = raw_values
@@ -34,6 +34,7 @@ class GraphiteRecord(object):
         return type(x).__name__ + str(self)
 
     def _init_series(self):
+        # Time of a data point is an interval
         assert (self.end_time - self.start_time) / self.step == len(self.values), \
             'Time range and step are not aligned with values'
 
@@ -96,7 +97,7 @@ class GraphiteRecord(object):
         """
         :param str value:
         """
-        return self.default_nan_value == eval(value)
+        return self.default_nan_value == value
         # if self.default_nan_value is None:
         #     return value.lower() in ('none', 'null', 'nil', 'nan', 'undefined')
         # return dumps(self.default_nan_value) == value
@@ -112,13 +113,14 @@ class GraphiteRecord(object):
 
         if record.end_time <= self.end_time:
             return
-        values, _, self.end_time = record._slice_values(self.end_time + self.step, record.end_time)
+
+        values, _, self.end_time = record._slice_values(self.end_time, record.end_time)
         self.values.extend(values)
         self._init_series()
 
     def slice(self, start_time, end_time):
         """Create a new record with values being a slice of this record's values."""
-        values, start_time, end_time = self._slice_values(start_time, end_time)
+        values, start_time, end_time = self._slice_values(int(start_time), int(end_time))
         return GraphiteRecord(self.target,
                               start_time,
                               end_time,
@@ -131,6 +133,8 @@ class GraphiteRecord(object):
         """
         Values are filled with default_nan_value, if time is out of range.
         Invervals on boundries are included.
+        :param int start_time:
+        :param int end_time:
         :return [int], int, int: sliced values and actually sliced time range
         """
         assert start_time < end_time, 'Invalid time range to slice'

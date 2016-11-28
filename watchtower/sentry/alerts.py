@@ -293,7 +293,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         return format_time(self.get_current_query_time())
 
     def _set_absolute_time_range(self):
-        self.current_now = timegm(datetime.utcnow().timetuple())
+        self.current_now = get_utcnow_ts()
         self.current_from = int(self.current_now - parse_interval(self.time_window) / 1e3)
         self.current_until = int(max(self.current_now,
                                      self.current_now - parse_interval(self.until) / 1e3))
@@ -412,8 +412,6 @@ class GraphiteAlert(BaseAlert):
                                 target='loading {}'.format(query),
                                 ntype='common')
 
-                yield self.relax()
-
             self.waiting = False
 
     def get_graph_url(self, target, graphite_url=None):
@@ -489,3 +487,7 @@ class CharthouseAlert(GraphiteAlert):
         url = "{base}/explorer#expression={query}&from={_from}&until={until}".format(
             base=charthouse_url, query=query, _from=_from, until=until)
         return url
+
+
+def get_utcnow_ts():
+    return timegm(datetime.utcnow().timetuple())

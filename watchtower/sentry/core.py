@@ -208,7 +208,8 @@ class ScannerReactor(Reactor):
         'scan_step': '5m',
         'scan_from': None, # should be absolute time
         'scan_until': None,
-        'prefetch_size': '1day'
+        'prefetch_size': '6h',
+        'busy_timeout': '2m',
     }
 
     def __init__(self, **options):
