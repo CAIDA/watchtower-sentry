@@ -38,19 +38,33 @@ class GraphiteRecord(object):
         assert (self.end_time - self.start_time) / self.step == len(self.values), \
             'Time range and step are not aligned with values'
 
-        self.series = []
-        for value, time in zip(self.values, range(self.start_time, self.end_time, self.step)):
-            try:
-                if self.is_nan(value):
-                    if not self.ignore_nan:
-                        self.series.append((0.0, time))
-                else:
-                    self.series.append((float(value), time))
-            except ValueError:
-                pass
+        def _g():
+            for value, time in zip(self.values, range(self.start_time, self.end_time, self.step)):
+                try:
+                    if self.is_nan(value):
+                        if not self.ignore_nan:
+                            yield (0.0, time)
+                    else:
+                        yield (float(value), time)
+                except ValueError:
+                    pass
 
-        self.no_data = not self.values
-        self.empty = not self.series
+        self._gen_series = _g()
+        self._series = None
+
+    @property
+    def series(self):
+        if self._series is None:
+            self._series = list(self._gen_series)
+        return self._series
+
+    @property
+    def empty(self):
+        return not self.series
+
+    @property
+    def no_data(self):
+        return not self.values
 
     def get_end_time(self):
         return datetime.utcfromtimestamp(self.end_time)
