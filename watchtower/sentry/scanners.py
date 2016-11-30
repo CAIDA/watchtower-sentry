@@ -39,9 +39,9 @@ class CharthouseScanner(CharthouseAlert):
         self.prefetch_size = int(parse_interval(
             options.get('prefetch_size', self.reactor.options['prefetch_size'])) / 1e3)
 
-        actual_scan_from = self.current_from
+        init_scan_until = self.current_from - self.scan_step
         # {target: (from, until, {record_name: record})}
-        self.records_cache = defaultdict(lambda: (-1, actual_scan_from, {}))
+        self.records_cache = defaultdict(lambda: (-1, init_scan_until, {}))
 
         # Options controlling how long a scanner can run consecutively before yielding to others
         self.busy_timeout = int(parse_interval(
@@ -88,7 +88,7 @@ class CharthouseScanner(CharthouseAlert):
         if self.current_until > cached_until:
             # next_from = cached_until
             next_from = cached_until + self.scan_step  # assume scan_step == step of GraphiteRecords
-            next_until = max(self.current_until, next_from + self.prefetch_size)
+            next_until = min(max(self.current_until, next_from + self.prefetch_size), self.scan_until)
             next_cache = {}
             LOGGER.debug('Data not found in cache. Fetching from %s to %s', next_from, next_until)
 

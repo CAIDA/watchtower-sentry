@@ -28,6 +28,6 @@ setup(
     include_package_data=True,
     entry_points={'console_scripts': [
         'watchtower-sentry=watchtower.sentry.app:run',
-        'watchtower-scanner=watchtower.sentry.app:run_scanner'
+        'watchtower-scanner=watchtower.sentry.scanner_app:run_scanner'
     ]},
 )
