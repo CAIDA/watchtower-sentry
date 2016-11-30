@@ -82,7 +82,6 @@ class CharthouseScanner(CharthouseAlert):
         graphite_url, expression, raw_data = self._parse_request(request)
         request_target = ':'.join([self.name, expression, 'history' if history else 'current'])
         cached_from, cached_until, cache = self.records_cache[request_target]
-        LOGGER.debug('Looking cache for data: %s', request_target)
         assert self.current_from >= cached_from, 'Time is going backwards!'
 
         # Update cache if needed
@@ -124,7 +123,6 @@ class CharthouseScanner(CharthouseAlert):
             relaxed = True
 
         else:
-            LOGGER.debug('Data found in cache')
             relaxed = False
 
         # Give other scanners a chance to load data

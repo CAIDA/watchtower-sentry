@@ -384,7 +384,6 @@ class GraphiteAlert(BaseAlert):
                     else:
                         history_records = yield self._fetch_records(url['history'], history=True)
 
-                    LOGGER.debug('%s recieved %s records', self.name, len(current_records) + len(history_records))
                     if len(current_records) == 0 or len(history_records) == 0:
                         self.notify(self.loading_error,
                                     'Loading error: Server returned an empty response',
@@ -455,8 +454,7 @@ class GraphiteAlert(BaseAlert):
                                            auth_username=self.auth_username,
                                            auth_password=self.auth_password,
                                            request_timeout=self.request_timeout,
-                                           connect_timeout=self.connect_timeout,
-                                           **kwargs)
+                                           connect_timeout=self.connect_timeout)
         records = [GraphiteRecord.from_string(line.decode('utf-8'),
                                               default_nan_value=self.default_nan_value,
                                               ignore_nan=self.ignore_nan)
