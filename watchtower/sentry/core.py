@@ -8,6 +8,7 @@ from tornado import ioloop, log, gen
 from .alerts import BaseAlert
 from .utils import parse_interval
 from .handlers import registry
+import scanners
 
 try:
     import yaml
@@ -55,10 +56,6 @@ class Reactor(object):
         'loading_error': 'critical',
         'ignore_alerted_history': False,
         'alerts': [],
-        'scan_span': '1m',
-        'scan_step': '5m',
-        'scan_from': None, # should be absolute time
-        'scan_until': None
     }
 
     def __init__(self, **options):
@@ -205,6 +202,16 @@ def _get_numeric_log_level(level):
 
 class ScannerReactor(Reactor):
     """Reactor for watchtower scanner"""
+
+    scanner_defaults = {
+        'scan_span': '1m',
+        'scan_step': '5m',
+        'scan_from': None, # should be absolute time
+        'scan_until': None,
+        'prefetch_size': '6h',
+        'busy_timeout': '2m',
+    }
+
     def __init__(self, **options):
         super(ScannerReactor, self).__init__(**options)
         self.loop.add_callback(self._scan)
@@ -215,6 +222,7 @@ class ScannerReactor(Reactor):
     def reinit(self, *args, **options):
         LOGGER.info('Read configuration')
 
+        self.options.update(self.scanner_defaults)
         self.options.update(options)
 
         self.include_config(self.options.get('config'))

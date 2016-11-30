@@ -29,22 +29,20 @@ class KafkaHandler(AbstractHandler):
         LOGGER.debug('Handler (%s) %s', self.name, level)
 
         if ntype == alert.source:
-            self.insert_alert(level, alert,
-                              alert.get_time_with_offset(),
-                              [self.create_violation(alert, target,
-                                                     value, rule)])
+            raise RuntimeError('Call notify_batch() to insert violations with accurate time')
         else:
             # Usually means internal error or time-series-unrelated events
             self.insert_error(alert, ntype, value)
 
     @staticmethod
-    def create_violation(alert, target, value, rule):
+    def create_violation(alert, record, value, rule):
         return watchtower.alert.Violation(
-            expression=target,
+            time=calendar.timegm(alert.get_record_time(record).timetuple()),
+            expression=record.target,
             value=value,
             condition=extract_condition(rule),
-            history=list(alert.history[target]),
-            history_value=alert.get_history_val(target)
+            history=list(alert.history[record.target]),
+            history_value=alert.get_history_val(record.target)
         )
 
     def notify_batch(self, level, alert, ntype, data):
@@ -53,13 +51,11 @@ class KafkaHandler(AbstractHandler):
         # LOGGER.debug('Handler (%s-batch) %s', self.name, level)
 
         if ntype == alert.source:
-            violations = [self.create_violation(alert, record.target,
-                                                value, rule)
+            violations = [self.create_violation(alert, record, value, rule)
                           for record, value, rule in data]
-            self.insert_alert(level, alert, alert.get_record_time(data[0][0]),
-                              violations)
+            self.insert_alert(level, alert, alert.get_current_query_time(), violations)
         else:
-            raise RuntimeError('Call notify() to insert error')
+            raise RuntimeError('Call notify() to insert error without violations data')
 
     def insert_alert(self, level, alert, time, violations):
         # LOGGER.debug('Alert expression: %s' % alert.current_query)
@@ -80,7 +76,7 @@ class KafkaHandler(AbstractHandler):
         self.producer.produce_error(watchtower.alert.Error(
             fqid=alert.fqid,
             name=alert.name,
-            time=calendar.timegm(alert.get_time_with_offset().timetuple()),
+            time=calendar.timegm(alert.get_current_query_time().timetuple()),
             expression=alert.current_query,
             history_expression=alert.history_query,
             type=ntype or 'Unknown',  # Should be undefined behavior

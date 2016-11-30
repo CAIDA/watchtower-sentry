@@ -18,7 +18,7 @@ import math
 from collections import deque, defaultdict
 from itertools import islice
 from datetime import datetime, timedelta
-from time import mktime
+from calendar import timegm
 
 
 LOGGER = log.gen_log
@@ -160,6 +160,9 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         else:
             self.callback = ioloop.PeriodicCallback(self.load, interval)
 
+        # For recording accurate time of last request
+        self._set_absolute_time_range()
+
     def convert(self, value):
         """Convert self value."""
         return convert_to_format(value, self._format)
@@ -286,13 +289,20 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         self.state[target] = level
         return True
 
-    def format_time_with_offset(self, dt=None):
-        dt = self.get_time_with_offset(dt)
-        return format_time(dt)
+    def format_time_with_offset(self):
+        return format_time(self.get_current_query_time())
 
-    def get_time_with_offset(self, dt=None):
-        dt = dt or datetime.utcnow()
-        return dt - timedelta(milliseconds=parse_interval(self.until))
+    def _set_absolute_time_range(self):
+        self.current_now = get_utcnow_ts()
+        self.current_from = int(self.current_now - parse_interval(self.time_window) / 1e3)
+        self.current_until = int(max(self.current_now,
+                                     self.current_now - parse_interval(self.until) / 1e3))
+
+    def get_current_query_time(self):
+        """
+        :return datetime:
+        """
+        return datetime.utcfromtimestamp(self.current_from)
 
     def load(self):
         """Load from remote."""
@@ -363,53 +373,44 @@ class GraphiteAlert(BaseAlert):
                 self.current_query = query['current']
                 self.history_query = query['history']
                 self.current_url = url['current']
-                LOGGER.debug('%s: start checking: %s', self.name, url)
+                LOGGER.debug('%s: start checking %s from %s to %s. Current url: "%s". History url: "%s"',
+                    self.name, self.current_query, self.current_from, self.current_until,
+                    self.current_url, url['history'])
                 try:
-                    response = yield self.client.fetch(url['current'],
-                                                       auth_username=self.auth_username,
-                                                       auth_password=self.auth_password,
-                                                       request_timeout=self.request_timeout,
-                                                       connect_timeout=self.connect_timeout)
-
-                    current_records = [GraphiteRecord(line.decode('utf-8'),
-                                                      self.default_nan_value,
-                                                      self.ignore_nan)
-                                       for line in response.buffer]
+                    current_records = yield self._fetch_records(url['current'])
 
                     if query['current'] == query['history']:
                         history_records = current_records
                     else:
-                        response = yield self.client.fetch(url['history'],
-                                                           auth_username=self.auth_username,
-                                                           auth_password=self.auth_password,
-                                                           request_timeout=self.request_timeout,
-                                                           connect_timeout=self.connect_timeout)
-
-                        history_records = [GraphiteRecord(line.decode('utf-8'),
-                                                          self.default_nan_value,
-                                                          self.ignore_nan)
-                                           for line in response.buffer]
+                        history_records = yield self._fetch_records(url['history'], history=True)
 
                     LOGGER.debug('%s recieved %s records', self.name, len(current_records) + len(history_records))
                     if len(current_records) == 0 or len(history_records) == 0:
                         self.notify(self.loading_error,
                                     'Loading error: Server returned an empty response',
-                                    target='loading',
+                                    target='loading {}'.format(query),
                                     ntype='emptyresp')
                     else:
                         self.check(current_records, history_records)
-                        self.notify('normal', 'Metrics are loaded', target='loading', ntype='common')
+                        self.notify('normal',
+                                    'Metrics are loaded',
+                                    target='loading {}'.format(query),
+                                    ntype='common')
                 except hc.HTTPError as e:
                     LOGGER.exception(e)
-                    self.notify(
-                        self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
                     resp = e.response
                     if resp:
                         LOGGER.exception(resp.body)
+                    self.notify(self.loading_error,
+                                'Loading error: %s' % e,
+                                target='loading {}'.format(query),
+                                ntype='common')
                 except Exception as e:
                     LOGGER.exception(e)
-                    self.notify(
-                        self.loading_error, 'Loading error: %s' % e, target='loading', ntype='common')
+                    self.notify(self.loading_error,
+                                'Loading error: %s' % e,
+                                target='loading {}'.format(query),
+                                ntype='common')
 
             self.waiting = False
 
@@ -420,11 +421,8 @@ class GraphiteAlert(BaseAlert):
     def _graphite_url(self, query, raw_data=False, graphite_url=None):
         query = escape.url_escape(query)
         graphite_url = graphite_url or self.reactor.options.get('public_graphite_url')
-        now = mktime(datetime.now().timetuple())
-        since = int(now - parse_interval(self.time_window) / 1e3)
-        until = int(max(now, now - parse_interval(self.until) / 1e3))
-        url = "{base}/render/?target={query}&from={time_window}&until={until}".format(
-            base=graphite_url, query=query, time_window=since, until=until)
+        url = "{base}/render/?target={query}&from={_from}&until={until}".format(
+            base=graphite_url, query=query, _from=self.current_from, until=self.current_until)
         if raw_data:
             url = "{0}&rawData=true".format(url)
         return url
@@ -451,6 +449,21 @@ class GraphiteAlert(BaseAlert):
         _, time = getattr(record, self.method_name)(*self.method_params)
         return datetime.utcfromtimestamp(time)
 
+    @gen.coroutine
+    def _fetch_records(self, request, **kwargs):
+        response = yield self.client.fetch(request,
+                                           auth_username=self.auth_username,
+                                           auth_password=self.auth_password,
+                                           request_timeout=self.request_timeout,
+                                           connect_timeout=self.connect_timeout,
+                                           **kwargs)
+        records = [GraphiteRecord.from_string(line.decode('utf-8'),
+                                              default_nan_value=self.default_nan_value,
+                                              ignore_nan=self.ignore_nan)
+                   for line in response.buffer]
+        raise gen.Return(records)
+
+
 class CharthouseAlert(GraphiteAlert):
 
     source = 'charthouse'
@@ -467,58 +480,14 @@ class CharthouseAlert(GraphiteAlert):
         # Show a span of extra 12 hours around the window, centered
         # Make width of span configurable?
         # Must use timestamp with from & until instead of relative time in emails
-        now = mktime(datetime.now().timetuple())
         default_window = timedelta(hours=6).total_seconds()
-        since = int(now - parse_interval(self.time_window) / 1e3 - default_window)
-        until = int(max(now, now - parse_interval(self.until) / 1e3 + default_window))
+        _from = max(0, self.current_from - default_window)
+        until = max(self.current_now, self.current_until + default_window)
 
-        url = "{base}/explorer#expression={query}&from={since}&until={until}".format(
-            base=charthouse_url, query=query, since=since, until=until)
+        url = "{base}/explorer#expression={query}&from={_from}&until={until}".format(
+            base=charthouse_url, query=query, _from=_from, until=until)
         return url
 
 
-class CharthouseScanner(CharthouseAlert):
-
-    source = 'scanner'
-
-    def configure(self, **options):
-        super(CharthouseScanner, self).configure(**options)
-
-        self.scan_from, self.scan_until = map(options.get, ('scan_from', 'scan_until'))
-        assert self.scan_from and self.scan_until and (0 <= self.scan_from < self.scan_until), \
-            'Invalid scanning start and end time'
-
-        try:
-            self.scan_step, self.scan_span = (parse_interval(options.get(s)) / 1e3 for s in
-                ('scan_step', 'scan_span'))
-        except Exception as e:
-            LOGGER.exception(e)
-            raise AssertionError('Invalid scanning step or span')
-        assert self.scan_step > 0 and self.scan_span > 0, 'Invalid scanning span or step'
-
-    def start(self):
-        raise RuntimeError('Scanner does not have periodic callbacks')
-
-    @gen.coroutine
-    def load(self):
-        graphite_url = self.reactor.options.get('graphite_url')
-        steps = int((self.scan_until - 1 - self.scan_from) / self.scan_step)
-
-        for i in range(steps):
-            t = self.scan_from + i * self.scan_step - 1
-            self.time_window, self.until = max(0, int(t - self.scan_span)), int(t)
-            self.urls = [self._graphite_urls(
-                query, graphite_url=graphite_url) for query in self.queries]
-            LOGGER.debug('%s: scanning from %s to %s', self.name,
-                         *map(datetime.utcfromtimestamp, (self.time_window, self.until)))
-
-            yield super(CharthouseScanner, self).load()
-
-        raise gen.Return(True)
-
-    def _graphite_url(self, query, raw_data=False, graphite_url=None):
-        return "{base}/render/?target={query}&from={since}&until={until}&rawData=true".format(
-            base=graphite_url,
-            query=escape.url_escape(query),
-            since=self.time_window,
-            until=self.until)
+def get_utcnow_ts():
+    return timegm(datetime.utcnow().timetuple())
