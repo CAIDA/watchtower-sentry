@@ -147,8 +147,7 @@ class GraphiteRecord(object):
         """
         Values are filled with default_nan_value, if time is out of range.
         Invervals on boundries are included.
-        :param int start_time:
-        :param int end_time:
+
         :return [int], int, int: sliced values and actually sliced time range
         """
         assert start_time < end_time, 'Invalid time range to slice'
@@ -157,11 +156,16 @@ class GraphiteRecord(object):
         i_start = int(math.floor(float(start_time - self.start_time) / self.step))
         i_end = int(math.ceil(float(end_time - self.start_time) / self.step))
 
-        values = [self.default_nan_value] * -i_start
-        values.extend(self.values[max(i_start, 0):i_end])
-        values.extend([self.default_nan_value] * (i_end - len(self.values)))
+        if i_end >= 0 and i_start <= len(self.values):
+            values = [self.default_nan_value] * -i_start
+            values.extend(self.values[max(i_start, 0):i_end])
+            values.extend([self.default_nan_value] * (i_end - len(self.values)))
+        else:
+            values = [self.default_nan_value] * (i_end - i_start)
 
         start_time = i_start * self.step + self.start_time
         end_time = i_end * self.step + self.start_time
+
+        assert (end_time - start_time) / self.step == len(values)
 
         return values, start_time, end_time
