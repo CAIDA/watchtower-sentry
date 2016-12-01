@@ -112,9 +112,6 @@ class GraphiteRecord(object):
         :param str value:
         """
         return self.default_nan_value == value
-        # if self.default_nan_value is None:
-        #     return value.lower() in ('none', 'null', 'nil', 'nan', 'undefined')
-        # return dumps(self.default_nan_value) == value
 
     def extend(self, record):
         """Append that series to the end of this series.
@@ -151,7 +148,6 @@ class GraphiteRecord(object):
         :return [int], int, int: sliced values and actually sliced time range
         """
         assert start_time < end_time, 'Invalid time range to slice'
-        # TODO do not fill when on boundry. include intervals on boundries.
 
         i_start = int(math.floor(float(start_time - self.start_time) / self.step))
         i_end = int(math.ceil(float(end_time - self.start_time) / self.step))
