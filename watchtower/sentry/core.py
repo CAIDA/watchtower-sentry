@@ -206,7 +206,7 @@ class ScannerReactor(Reactor):
     scanner_defaults = {
         'scan_span': '1m',
         'scan_step': '5m',
-        'scan_from': None, # should be absolute time
+        'scan_from': None,  # should be absolute time
         'scan_until': None,
         'prefetch_size': '6h',
         'busy_timeout': '2m',
