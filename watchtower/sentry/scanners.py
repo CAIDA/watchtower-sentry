@@ -42,9 +42,12 @@ class CharthouseScanner(CharthouseAlert):
         self.prefetch_size = int(parse_interval(
             options.get('prefetch_size', self.reactor.options['prefetch_size'])) / 1e3)
 
+        # increase timeout since we will query in bulk
+        self.request_timeout = self.request_timeout * (self.prefetch_size / self.scan_step)
+
         init_scan_until = self.current_from - self.scan_step
         # {target: (from, until, {record_name: record})}
-        self.records_cache = defaultdict(lambda: (-1, init_scan_until, {}))
+        self.records_cache = defaultdict(lambda: (-1, init_scan_until, []))
 
         # Options controlling how long a scanner can run consecutively before yielding to others
         self.busy_timeout = int(parse_interval(
@@ -86,19 +89,25 @@ class CharthouseScanner(CharthouseAlert):
         cached_from, cached_until, cache = self.records_cache[request_target]
         assert self.current_from >= cached_from, 'Time is going backwards!'
 
+        LOGGER.debug('Getting data for %s (%s to %s) from cache' %
+                     (expression, self.current_from, self.current_until))
+
         # Update cache if needed
         if self.current_until > cached_until:
             # next_from = cached_until
             next_from = cached_until + self.scan_step  # assume scan_step == step of GraphiteRecords
             next_until = min(max(self.current_until, next_from + self.prefetch_size), self.scan_until)
-            next_cache = {}
-            LOGGER.debug('Data not found in cache. Fetching from %s to %s', next_from, next_until)
+            #next_cache = []
+            LOGGER.debug('Data not found in cache (current is %s to %s). Fetching %s from %s to %s',
+                         cached_from, cached_until,
+                         'history' if history else 'current',
+                         next_from, next_until)
 
             # Discard old data
-            for record_name, record in cache.items():
-                trimmed_record = record.slice(cached_from, cached_until)
-                if not trimmed_record.no_data:
-                    next_cache[record_name] = trimmed_record
+            #for record_name, record in cache:
+            #    trimmed_record = record.slice(cached_from, cached_until)
+            #    if not trimmed_record.no_data:
+            #        next_cache[record_name] = trimmed_record
 
             # Fetch data
             last_from = self.current_from  # hax time range
@@ -112,14 +121,14 @@ class CharthouseScanner(CharthouseAlert):
             next_records = yield super(CharthouseScanner, self)._fetch_records(next_url, **kwargs)
 
             # Store new data
-            for record in next_records:
-                if record.target in next_cache:
-                    next_cache[record.target].extend(record)
-                else:
-                    next_cache[record.target] = record
+            #for record in next_records:
+            #    if record.target in next_cache:
+            #        next_cache[record.target].extend(record)
+            #    else:
+            #        next_cache[record.target] = record
 
             # Update states
-            self.records_cache[request_target] = next_from, next_until, next_cache
+            self.records_cache[request_target] = next_from, next_until, next_records
             cached_from, cached_until, cache = self.records_cache[request_target]
 
             has_cache = False
@@ -131,7 +140,7 @@ class CharthouseScanner(CharthouseAlert):
         yield self.relax(not has_cache)
 
         # Return data from cache
-        records = [r.slice(self.current_from, self.current_until) for r in cache.values()]
+        records = [r.slice(self.current_from, self.current_until) for r in cache]
         raise gen.Return(records)
 
     @staticmethod
