@@ -17,6 +17,9 @@ class CharthouseScanner(CharthouseAlert):
 
     source = 'scanner'
 
+    running_scanner = None
+    last_relaxed_time = None
+
     def configure(self, **options):
         try:
             self.scan_from, self.scan_until = (int(options.get(s, self.reactor.options[s]))
@@ -49,7 +52,6 @@ class CharthouseScanner(CharthouseAlert):
         # Options controlling how long a scanner can run consecutively before yielding to others
         self.busy_timeout = int(parse_interval(
             options.get('busy_timeout', self.reactor.options['busy_timeout'])) / 1e3)
-        self.last_relaxed = get_utcnow_ts()
 
     def start(self):
         raise RuntimeError('Scanner does not have periodic callbacks')
@@ -129,13 +131,13 @@ class CharthouseScanner(CharthouseAlert):
             self.records_cache[request_target] = next_from, next_until, next_records
             cached_from, cached_until, cache = self.records_cache[request_target]
 
-            relaxed = True
+            has_cache = False
 
         else:
-            relaxed = False
+            has_cache = True
 
         # Give other scanners a chance to load data
-        yield self.relax(relaxed)
+        yield self.relax(not has_cache)
 
         # Return data from cache
         records = [r.slice(self.current_from, self.current_until) for r in cache]
@@ -158,13 +160,17 @@ class CharthouseScanner(CharthouseAlert):
         if len(self.reactor.alerts) <= 1:
             return
 
-        if relaxed:
-            self.last_relaxed = get_utcnow_ts()
+        if (CharthouseScanner.running_scanner is not self) or relaxed:
+            CharthouseScanner.running_scanner = self
+            CharthouseScanner.last_relaxed_time = get_utcnow_ts()
             return
 
-        busy_time = get_utcnow_ts() - self.last_relaxed
+        busy_time = get_utcnow_ts() - CharthouseScanner.last_relaxed_time
         if busy_time > self.busy_timeout:
-            LOGGER.debug('Scanner %s fall asleep after being busy for too long', self.name)
+            LOGGER.debug('Scanner %s fall asleep after %ss', self.name, busy_time)
             yield gen.moment
-            LOGGER.debug('Scanner %s is awaken', self.name)
-            self.last_relaxed = get_utcnow_ts()
+
+            # Only reset time when others have had a chance to run
+            if CharthouseScanner.running_scanner is not self:
+                CharthouseScanner.running_scanner = self
+                CharthouseScanner.last_relaxed_time = get_utcnow_ts()
