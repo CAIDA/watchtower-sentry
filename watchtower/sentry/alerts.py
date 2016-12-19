@@ -364,6 +364,10 @@ class GraphiteAlert(BaseAlert):
     @gen.coroutine
     def load(self):
         """Load data from Graphite."""
+
+        # update the query time
+        self._set_absolute_time_range()
+
         if self.waiting:
             self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
         else:
