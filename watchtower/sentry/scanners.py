@@ -39,6 +39,8 @@ class CharthouseScanner(CharthouseAlert):
 
         super(CharthouseScanner, self).configure(**options)
 
+        self.scanner = True
+
         self.prefetch_size = int(parse_interval(
             options.get('prefetch_size', self.reactor.options['prefetch_size'])) / 1e3)
 

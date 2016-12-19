@@ -319,6 +319,8 @@ class GraphiteAlert(BaseAlert):
         """Configure the alert."""
         super(GraphiteAlert, self).configure(**options)
 
+        self.scanner = False
+
         self.default_nan_value = options.get(
             'default_nan_value', self.reactor.options['default_nan_value'])
         self.ignore_nan = options.get('ignore_nan', self.reactor.options['ignore_nan'])
@@ -366,7 +368,9 @@ class GraphiteAlert(BaseAlert):
         """Load data from Graphite."""
 
         # update the query time
-        self._set_absolute_time_range()
+        # hax to see if we're not a scanner...
+        if not self.scanner:
+            self._set_absolute_time_range()
 
         if self.waiting:
             self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
