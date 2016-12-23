@@ -241,7 +241,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
     def get_history_val(self, target):
         history = self.history[target]
-        if len(history) == 0:  # allow partial, but not empty, history
+        if len(history) < self.history_size:
             return None
         method_tokens = self.history_method.split(' ', 1)
         if method_tokens[0] == 'percentile':
