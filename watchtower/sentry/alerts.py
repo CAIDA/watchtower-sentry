@@ -117,6 +117,8 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         if not name or not fqid:
             raise AssertionError("Alert's name and FQID should be set.")
 
+        self.scanner = False
+
         if not rules:
             raise AssertionError("%s: Alert's rules is invalid" % name)
         self.rules = [parse_rule(rule) for rule in rules]
@@ -323,8 +325,6 @@ class GraphiteAlert(BaseAlert):
         """Configure the alert."""
         super(GraphiteAlert, self).configure(**options)
 
-        self.scanner = False
-
         self.default_nan_value = options.get(
             'default_nan_value', self.reactor.options['default_nan_value'])
         self.ignore_nan = options.get('ignore_nan', self.reactor.options['ignore_nan'])
@@ -374,6 +374,7 @@ class GraphiteAlert(BaseAlert):
         # update the query time
         # hax to see if we're not a scanner...
         if not self.scanner:
+            LOGGER.info("Setting absolute times for query")
             self._set_absolute_time_range()
 
         if self.waiting:
