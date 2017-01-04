@@ -35,6 +35,7 @@ class Reactor(object):
         'graphite_url': 'http://localhost',
         'charthouse_url': 'http://localhost',
         'history_size': '1day',
+        'min_history_size': 1,  # in terms of slots, not time
         'interval': '10minute',
         'logging': 'info',
         'method': 'average',

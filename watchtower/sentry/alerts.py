@@ -148,6 +148,10 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         self.history_size = parse_interval(self.history_size)
         self.history_size = int(math.ceil(self.history_size / interval))
 
+        self.min_history_size = options.get('min_history_size', self.reactor.options['min_history_size'])
+        if not self.min_history_size:
+            self.min_history_size = self.history_size
+
         self.no_data = options.get('no_data', self.reactor.options['no_data'])
         self.loading_error = options.get('loading_error', self.reactor.options['loading_error'])
 
@@ -241,7 +245,7 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
 
     def get_history_val(self, target):
         history = self.history[target]
-        if len(history) < self.history_size:
+        if len(history) < self.min_history_size:
             return None
         method_tokens = self.history_method.split(' ', 1)
         if method_tokens[0] == 'percentile':
