@@ -350,7 +350,6 @@ class GraphiteAlert(BaseAlert):
         self.auth_username = self.reactor.options.get('auth_username')
         self.auth_password = self.reactor.options.get('auth_password')
 
-        self.urls = []
         queries = self.queries
         self.queries = []
         for query in queries:
@@ -360,12 +359,8 @@ class GraphiteAlert(BaseAlert):
                     'history': query,
                 }
             self.queries.append(query)
-            self.urls.append(self._graphite_urls(
-                query, graphite_url=self.reactor.options.get('graphite_url'),
-                raw_data=True))
 
         LOGGER.debug('%s: queries = %s', self.name, self.queries)
-        LOGGER.debug('%s: urls = %s', self.name, self.urls)
 
     @gen.coroutine
     def load(self):
@@ -385,20 +380,21 @@ class GraphiteAlert(BaseAlert):
         else:
             self.waiting = True
 
-            for query, url in zip(self.queries, self.urls):
+            for query in self.queries:
                 self.current_query = query['current']
                 self.history_query = query['history']
-                self.current_url = url['current']
+                urls = self._graphite_urls(query, graphite_url=self.reactor.options.get('graphite_url'), raw_data=True)
+                self.current_url = urls['current']
                 LOGGER.debug('%s: start checking %s from %s to %s. Current url: "%s". History url: "%s"',
                     self.name, self.current_query, self.current_from, self.current_until,
-                    self.current_url, url['history'])
+                    self.current_url, urls['history'])
                 try:
-                    current_records = yield self._fetch_records(url['current'])
+                    current_records = yield self._fetch_records(urls['current'])
 
                     if query['current'] == query['history']:
                         history_records = current_records
                     else:
-                        history_records = yield self._fetch_records(url['history'], history=True)
+                        history_records = yield self._fetch_records(urls['history'], history=True)
 
                     if len(current_records) == 0 or len(history_records) == 0:
                         self.notify(self.loading_error,
