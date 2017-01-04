@@ -374,8 +374,11 @@ class GraphiteAlert(BaseAlert):
         # update the query time
         # hax to see if we're not a scanner...
         if not self.scanner:
-            LOGGER.info("Setting absolute times for query")
+            LOGGER.info("Setting absolute times for query (time: %s now: %s from: %s until: %s)" %
+                        (get_utcnow_ts(), self.current_now, self.current_from, self.current_until))
             self._set_absolute_time_range()
+            LOGGER.info("Done setting absolute times for query (time: %s now: %s from: %s until: %s)" %
+                        (get_utcnow_ts(), self.current_now, self.current_from, self.current_until))
 
         if self.waiting:
             self.notify('warning', 'Process takes too much time', target='waiting', ntype='common')
