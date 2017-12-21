@@ -42,7 +42,8 @@ class KafkaHandler(AbstractHandler):
             value=value,
             condition=extract_condition(rule),
             history=list(alert.history[record.target]),
-            history_value=alert.get_history_val(record.target)
+            history_value=alert.get_history_val(record.target),
+            meta=alert.meta
         )
 
     def notify_batch(self, level, alert, ntype, data):

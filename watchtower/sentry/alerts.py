@@ -110,12 +110,13 @@ class BaseAlert(_.with_metaclass(AlertFabric)):
         """String representation."""
         return "%s (%s)" % (self.name, self.interval)
 
-    def configure(self, fqid=None, name=None, rules=None, queries=None, **options):
+    def configure(self, fqid=None, name=None, meta=None, rules=None, queries=None, **options):
         """Configure the alert."""
         self.fqid = fqid
         self.name = name
         if not name or not fqid:
             raise AssertionError("Alert's name and FQID should be set.")
+        self.meta = meta
 
         self.scanner = False
 
