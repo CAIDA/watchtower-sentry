@@ -2,54 +2,36 @@ import sys
 import os
 import signal
 import re
-from urllib.parse import urlencode
 import json
 import time
 import calendar
 import logging
+import logging.handlers
+import traceback
+import argparse
+import requests
 
-from tornado import gen, httpclient, ioloop, log
-from tornado.options import define, options
+exitstatus = 0
 
 try:
     import yaml
 except ImportError:
     yaml = None
 
-LOGGER = log.gen_log
-
 COMMENT_RE = re.compile('//\s+.*$', re.M)
 
-####################################################
-# DECORATED
-@gen.coroutine
-def a_decorated():
-    b = yield c()
-    raise gen.Return(b)
 
-# NATIVE
-async def a_native():
-    b = await c()
-    return b
-####################################################
-
-define('config', default='sentry.yaml', help='Path to configuration file (YAML/JSON)')
-# define('pidfile', default='sentry.pid', help='Name of pid file')
-
-
-def main():
-    options.parse_command_line()
-
-    s = Sentry(options.as_dict())
+def main(options):
+    logger.debug("#### main start")
 
 #    signal.signal(signal.SIGTERM, s.stop)
 #    signal.signal(signal.SIGINT, s.stop)
 #    if hasattr(signal, 'SIGHUP'):
 #        signal.signal(signal.SIGHUP, s.reinit)
 
-    LOGGER.debug("#### app start")
+    s = Sentry(options)
     s.run()
-    LOGGER.debug("#### app done")
+    logger.debug("#### main done")
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a unix
@@ -80,7 +62,7 @@ class Historical:
     def make_next_request(self):
         self.start_batch = self.end_batch
         if self.start_batch >= self.end_time:
-            return
+            return False
         self.end_batch += self.batch_duration
         if self.end_batch >= self.end_time:
             self.end_batch = self.end_time
@@ -91,22 +73,15 @@ class Historical:
         }
         if self.queryparams:
             post_data.update(self.queryparams)
-        body = urlencode(post_data)
-        request = httpclient.HTTPRequest(self.options['url'], method='POST',
-            headers=None, body=body)
-        LOGGER.debug("#### request: %d - %d" % (self.start_batch, self.end_batch))
-        LOGGER.debug("#### request body: %s" % body)
-        response = self.client.fetch(request)
-        self.loop.add_future(response, self.handle_response)
+        logger.debug("#### request: %d - %d" % (self.start_batch, self.end_batch))
+        self.request = requests.post(self.options['url'], data = post_data, timeout = 60)
+        return True
 
-    def handle_response(self, response):
-        # start the next request so it runs while we process the prev response
-        self.make_next_request()
-
-        LOGGER.debug("#### request time: %d" % response.result().request_time)
-        LOGGER.debug("#### response code: %d" % response.result().code)
-        result = json.loads(response.result().body)
-        LOGGER.debug("#### response: %s - %s\n" % (result['queryParameters']['from'], result['queryParameters']['until']))
+    def handle_response(self):
+        logger.debug("#### response code: %d" % self.request.status_code)
+        self.request.raise_for_status()
+        result = self.request.json()
+        logger.debug("#### response: %s - %s\n" % (result['queryParameters']['from'], result['queryParameters']['until']))
 
         for key in result['data']['series']:
             t = int(result['data']['series'][key]['from'])
@@ -115,57 +90,100 @@ class Historical:
                 print([key, value, t])
                 t += step
 
-        if self.start_batch >= self.end_time:
-            self.loop.stop()
 
     def run(self):
-        LOGGER.debug("#### historic start")
-        self.loop = ioloop.IOLoop.current()
-        self.client = httpclient.AsyncHTTPClient()
-        self.make_next_request()
-        self.loop.start()
-        LOGGER.debug("#### historic done")
+        logger.debug("#### historic start")
+        # TODO: do make next request in a thread parallel with processing the prev response
+        while self.make_next_request():
+            self.handle_response()
+        logger.debug("#### historic done")
+
+
+class Realtime:
+    def __init__(self, options):
+        raise RuntimeError('not yet implemented')
+
 
 class Sentry:
-    def __init__(self, optdict):
-        self.options = optdict
+    def __init__(self, options):
+        self.options = options
         self.config = None
-        configname = self.options.get('config')
+        configname = os.path.abspath(self.options.config)
         if configname:
             self.load_config(configname)
-        if 'historical' in self.config['datasource'] and 'realtime' in self.config['datasource']:
-            raise RuntimeError("'datasource' may contain only one of 'historical' or 'realtime'")
+        if 'datasource' not in self.config:
+            raise RuntimeError("config is missing 'datasource'")
         if 'historical' in self.config['datasource']:
+            if 'realtime' in self.config['datasource']:
+                raise RuntimeError("'datasource' may contain only one of 'historical' or 'realtime'")
             self.source = Historical(self.config['datasource']['historical'])
-        #if 'realtime' in self.config['datasource']:
-        #    self.source = Realtime(self.config['datasource']['realtime'])
+        elif 'realtime' in self.config['datasource']:
+            self.source = Realtime(self.config['datasource']['realtime'])
+        else:
+            raise RuntimeError("'datasource' is missing one of 'historical' or 'realtime'")
 
     def load_config(self, filename):
-        LOGGER.info('Load configuration: %s' % filename)
-        if filename.endswith('.yaml'):
-            if not yaml:
-                raise RuntimeError("yaml not supported")
-            loader = yaml.safe_load
+        logger.info('Load configuration: %s' % filename)
+
+        if False:
+            if filename.endswith('.yaml'):
+                if not yaml:
+                    raise RuntimeError("yaml not supported")
+                loader = yaml.safe_load
+            else:
+                loader = json.loads
+            try:
+                with open(filename) as f:
+                    source = COMMENT_RE.sub("", f.read())
+                    self.config = loader(source)
+            except (IOError, ValueError) as e:
+                raise RuntimeError('Invalid config file %s %s' % (filename, str(e.args)))
+            except Exception as e:
+                raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
         else:
-            loader = json.loads
-        try:
-            with open(filename) as f:
-                source = COMMENT_RE.sub("", f.read())
-                self.config = loader(source)
-        except (IOError, ValueError) as e:
-            raise RuntimeError('Invalid config file %s %s' % (filename, str(e.args)))
-        except Exception as e:
-            raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
+            try:
+                with open(filename) as f:
+                    source = COMMENT_RE.sub("", f.read())
+                    self.config = yaml.safe_load(source)
+            except (IOError, ValueError) as e:
+                raise RuntimeError('Invalid config file %s %s' % (filename, str(e.args)))
+            except Exception as e:
+                raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
 
     def run(self):
-        LOGGER.debug("#### sentry start")
+        logger.debug("#### sentry start")
         self.source.run()
-        LOGGER.debug("#### sentry done")
+        logger.debug("#### sentry done")
 
 if __name__ == '__main__':
+    default_cfg_file = 'sentry.yaml'
+    default_log_level = 'INFO'
+    parser = argparse.ArgumentParser(description =
+        "Detect outages in IODA data and send alerts to watchtower-alert.")
+    parser.add_argument("-c", "--config",
+        help = ("name of configuration file [%s]" % default_cfg_file))
+    parser.add_argument("-L", "--loglevel",
+        help = ("logging level [%s]" % default_log_level))
+    options = parser.parse_args()
+
+    loghandler = logging.StreamHandler()
+    loghandler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d ' +
+        '[%(process)d] ' +
+        # '%(threadName)s ' +
+        '%(levelname)-8s: %(name)s: %(message)s',
+        '%H:%M:%S'))
+    logging.getLogger().addHandler(loghandler) # root logger
+    logger = logging.getLogger('watchtower.sentry') # sentry logger
+    logger.setLevel(options.loglevel)
+
+    logger.debug('#### main running')
+
+    # Main body logs all exceptions
     try:
-        main()
+        main(options)
         # print("timestr: %d" % strtimegm(sys.argv[1]))
     except Exception as e:
-        LOGGER.exception(e)
+        logger.critical('Exception:\n' + traceback.format_exc())
+        exitstatus = 1
 
+exit(exitstatus)
