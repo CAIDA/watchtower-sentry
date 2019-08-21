@@ -1,6 +1,0 @@
-{{ reactor.options.get('prefix') }} {{ level.upper() }}
-{{ '=' * len(reactor.options.get('prefix') + level)}}
-
-Alert: {{ alert.name }}
-Message: {{ value }}
-Time: {{ utils.format_time(dt.datetime.utcnow()) }}
