@@ -271,6 +271,105 @@ class Sentry:
         self.source.run()
         logger.debug("#### sentry done")
 
+    # Convert a DBATS glob to a regex.
+    # Unlike DBATS, this also allows non-nested parens for aggregate grouping.
+    #
+    # From DBATS docs:
+    # The pattern is similar to shell filename globbing, except that hierarchical components are separated by '.' instead of '/'.
+    #   * matches any zero or more characters (except '.')
+    #   ? matches any one character (except '.')
+    #   [...] matches any one character in the character class (except '.')
+    #       A leading '^' negates the character class
+    #       Two characters separated by '-' matches any ASCII character between the two characters, inclusive
+    #   {...} matches any one string of characters in the comma-separated list of strings
+    #   Any other character matches itself.
+    #   Any special character can have its special meaning removed by preceeding it with '\'.
+    @staticmethod
+    def glob_to_regex(glob):
+        re_meta = '.^$*+?{}[]|()'
+        glob_meta = '*?{}[]()'
+        regex = '^'
+        i = 0
+        parens = 0
+        while i < len(glob):
+            if glob[i] == '\\':
+                i += 1
+                if i >= len(glob):
+                    raise RuntimeError("illegal trailing '\\' in pattern")
+                elif glob[i] not in glob_meta:
+                    raise RuntimeError("illegal escape '\\%s' in pattern" % glob[i])
+                elif glob[i] in re_meta:
+                    regex += '\\'
+                regex += glob[i]
+                i += 1
+            elif glob[i] == '*':
+                regex += '[^.]*'
+                i += 1
+            elif glob[i] == '?':
+                regex += '[^.]'
+                i += 1
+            elif glob[i] == '[':
+                regex += '['
+                i += 1
+                if i < len(glob) and glob[i] == '^':
+                    regex += '^.'
+                    i += 1
+                while True:
+                    if i >= len(glob):
+                        raise RuntimeError("unmatched '[' in pattern")
+                    if glob[i] == '\\' and i+1 < len(glob):
+                        regex += glob[i:i+2]
+                        i += 2
+                    else:
+                        regex += glob[i]
+                        i += 1
+                        if glob[i-1] == ']':
+                            break
+            elif glob[i] == '{':
+                regex += '(?:' # non-capturing group
+                i += 1
+                while True:
+                    if i >= len(glob):
+                        raise RuntimeError("unmatched '{' in pattern")
+                    elif glob[i] == '\\':
+                        if i+1 >= len(glob):
+                            raise RuntimeError("illegal trailing '\\' in pattern")
+                        regex += glob[i:i+2]
+                        i += 2
+                    elif glob[i] == ',':
+                        regex += '|'
+                        i += 1
+                    elif glob[i] == '}':
+                        regex += ')'
+                        i += 1
+                        break
+                    elif glob[i] in '.*{}[]()':
+                        raise RuntimeError("illegal character '%s' inside {} in pattern" % glob[i])
+                    else:
+                        if glob[i] in re_meta:
+                            regex += '\\'
+                        regex += glob[i]
+                        i += 1
+            elif glob[i] == '(':
+                if parens > 0:
+                    raise RuntimeError("illegal nested parentheses in pattern")
+                parens += 1
+                regex += '('  # capturing group
+                i += 1
+            elif glob[i] == ')' and parens:
+                parens -= 1
+                regex += ')'
+                i += 1
+            else:
+                if glob[i] in re_meta:
+                    regex += '\\'
+                regex += glob[i]
+                i += 1
+        if parens > 0:
+            raise RuntimeError("unmatched '(' in pattern")
+        regex += '$'
+        return regex
+
 # end class Sentry
 
 
