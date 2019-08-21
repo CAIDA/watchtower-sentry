@@ -10,6 +10,8 @@ import logging.handlers
 import traceback
 import argparse
 import requests
+import jsonschema
+from pytimeseries.tsk.proxy import TskReader
 
 exitstatus = 0
 
@@ -43,6 +45,13 @@ def strtimegm(str):
         except:
             continue
     raise ValueError("Invalid date '%s'; expected 'YYYY-mm-dd [HH:MM[:SS]]'" % str)
+
+
+class UserError(RuntimeError):
+    pass
+
+# end class UserError
+
 
 class Historical:
     def __init__(self, options):
@@ -90,18 +99,66 @@ class Historical:
                 print([key, value, t])
                 t += step
 
-
     def run(self):
         logger.debug("#### historic start")
-        # TODO: do make next request in a thread parallel with processing the prev response
+        # TODO: make next request in a thread parallel with processing the
+        # prev response
         while self.make_next_request():
             self.handle_response()
         logger.debug("#### historic done")
 
+# end class Historical
+
 
 class Realtime:
     def __init__(self, options):
-        raise RuntimeError('not yet implemented')
+        self.tsk_reader = TskReader(
+                options['topicprefix'],
+                options['channelname'],
+                options['consumergroup'],
+                options['brokers'],
+                None,
+                False)
+        self.shutdown = False
+        self.msg_time = None
+        self.msgbuf = None
+
+    def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
+        if self.msgbuf == None or self.msgbuf != msgbuf:
+            label = "new"
+        else:
+            label = "repeated"
+        logger.debug("#### %s msg: %d bytes at %d" % (label, msgbuflen, msg_time))
+        self.msgbuf = msgbuf
+        self.msg_time = msg_time
+
+    def _kv_cb(self, key, val):
+        print([key, val, self.msg_time])
+
+    def run(self):
+        logger.debug("#### realtime start")
+        while not self.shutdown:
+            msg = self.tsk_reader.poll(10000)
+            if msg is None:
+                break
+            if not msg.error():
+                self.tsk_reader.handle_msg(msg.value(),
+                    self._msg_cb, self._kv_cb)
+                eof_since_data = 0
+            elif msg.error().code() == \
+                    confluent_kafka.KafkaError._PARTITION_EOF:
+                # no new messages, wait a bit and then force a flush
+                eof_since_data += 1
+                if eof_since_data >= 10:
+                    break
+            else:
+                logging.error("Unhandled Kafka error, shutting down")
+                logging.error(msg.error())
+                self.shutdown = True
+
+        logger.debug("#### realtime done")
+
+# end class Realtime
 
 
 class Sentry:
@@ -111,16 +168,65 @@ class Sentry:
         configname = os.path.abspath(self.options.config)
         if configname:
             self.load_config(configname)
-        if 'datasource' not in self.config:
-            raise RuntimeError("config is missing 'datasource'")
         if 'historical' in self.config['datasource']:
-            if 'realtime' in self.config['datasource']:
-                raise RuntimeError("'datasource' may contain only one of 'historical' or 'realtime'")
             self.source = Historical(self.config['datasource']['historical'])
         elif 'realtime' in self.config['datasource']:
             self.source = Realtime(self.config['datasource']['realtime'])
-        else:
-            raise RuntimeError("'datasource' is missing one of 'historical' or 'realtime'")
+
+    schema = {
+        "title": "Watchtower-Sentry configuration schema",
+        "type": "object",
+        "properties": {
+            "datasource": {
+                "type": "object",
+                "properties": {
+                    "historical": {
+                        "type": "object",
+                        "properties": {
+                            "starttime":     { "type": "string" },
+                            "endtime":       { "type": "string" },
+                            "url":           { "type": "string" },
+                            "batchduration": { "type": "number" },
+                            "ignorenull":    { "type": "boolean" },
+                            "expression":    { "type": "string" },
+                            "queryparams":   { "type": "object" },
+                        },
+                        "required": ["starttime", "endtime", "url",
+                            "batchduration", "expression"]
+                    },
+                    "realtime": {
+                        "type": "object",
+                        "properties": {
+                            "brokers":       { "type": "string" },
+                            "consumergroup": { "type": "string" },
+                            "topicprefix":   { "type": "string" },
+                            "channelname":   { "type": "string" },
+                            "pattern":       { "type": "string" },
+                        },
+                        "required": ["brokers", "consumergroup", "topicprefix",
+                            "channelname", "pattern"]
+                    }
+                },
+                # "datasource" requires ONE of "historical" or "realtime"
+                "oneOf": [
+                    { "required": ["historical"] },
+                    { "required": ["realtime"] }
+                ],
+            },
+            "aggregation": {
+                "type": "object",
+                # XXX...
+            },
+            "detection": {
+                "type": "object",
+                # XXX...
+            },
+            "alerting": {
+                "type": "object",
+                # XXX...
+            },
+        }
+    }
 
     def load_config(self, filename):
         logger.info('Load configuration: %s' % filename)
@@ -137,9 +243,11 @@ class Sentry:
                     source = COMMENT_RE.sub("", f.read())
                     self.config = loader(source)
             except (IOError, ValueError) as e:
-                raise RuntimeError('Invalid config file %s %s' % (filename, str(e.args)))
+                raise RuntimeError('Invalid config file %s %s' %
+                    (filename, str(e.args)))
             except Exception as e:
-                raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
+                raise RuntimeError('Invalid config file %s\n%s' %
+                    (filename, str(e)))
         else:
             try:
                 with open(filename) as f:
@@ -150,10 +258,21 @@ class Sentry:
             except Exception as e:
                 raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
 
+        # "jsonschema" actually validates the loaded data structure, not the
+        # raw text, so works whether the text was yaml or json.
+        try:
+            jsonschema.validate(instance = self.config, schema = self.schema)
+        except jsonschema.exceptions.ValidationError as e:
+            raise UserError(type(e).__name__ + ': ' + str(e))
+            return 1
+
     def run(self):
         logger.debug("#### sentry start")
         self.source.run()
         logger.debug("#### sentry done")
+
+# end class Sentry
+
 
 if __name__ == '__main__':
     default_cfg_file = 'sentry.yaml'
@@ -176,14 +295,19 @@ if __name__ == '__main__':
     logger = logging.getLogger('watchtower.sentry') # sentry logger
     logger.setLevel(options.loglevel)
 
-    logger.debug('#### main running')
+    logger.debug('#### logger initialized')
 
     # Main body logs all exceptions
     try:
-        main(options)
+        exitstatus = main(options)
         # print("timestr: %d" % strtimegm(sys.argv[1]))
-    except Exception as e:
-        logger.critical('Exception:\n' + traceback.format_exc())
+    except UserError as e:
+        logger.critical(str(e))
         exitstatus = 1
+    except Exception as e:
+        # possible programming error; include traceback
+        logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+        exitstatus = 255
 
-exit(exitstatus)
+    logger.debug('#### __main__ done')
+    sys.exit(exitstatus)
