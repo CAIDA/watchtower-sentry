@@ -2,7 +2,7 @@ import sys
 import os
 import signal
 import re
-import urllib
+from urllib.parse import urlencode
 import json
 import time
 import calendar
@@ -14,17 +14,24 @@ from tornado.options import define, options
 try:
     import yaml
 except ImportError:
-    try:
-        import pyyaml
-        yaml = pyyaml
-    except ImportError:
-        yaml = None
-
+    yaml = None
 
 LOGGER = log.gen_log
 
 COMMENT_RE = re.compile('//\s+.*$', re.M)
 
+####################################################
+# DECORATED
+@gen.coroutine
+def a_decorated():
+    b = yield c()
+    raise gen.Return(b)
+
+# NATIVE
+async def a_native():
+    b = await c()
+    return b
+####################################################
 
 define('config', default='sentry.yaml', help='Path to configuration file (YAML/JSON)')
 # define('pidfile', default='sentry.pid', help='Name of pid file')
@@ -84,7 +91,7 @@ class Historical:
         }
         if self.queryparams:
             post_data.update(self.queryparams)
-        body = urllib.urlencode(post_data)
+        body = urlencode(post_data)
         request = httpclient.HTTPRequest(self.options['url'], method='POST',
             headers=None, body=body)
         LOGGER.debug("#### request: %d - %d" % (self.start_batch, self.end_batch))
@@ -135,7 +142,12 @@ class Sentry:
 
     def load_config(self, filename):
         LOGGER.info('Load configuration: %s' % filename)
-        loader = yaml.safe_load if yaml and filename.endswith('.yaml') else json.loads
+        if filename.endswith('.yaml'):
+            if not yaml:
+                raise RuntimeError("yaml not supported")
+            loader = yaml.safe_load
+        else:
+            loader = json.loads
         try:
             with open(filename) as f:
                 source = COMMENT_RE.sub("", f.read())
