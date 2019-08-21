@@ -40,9 +40,9 @@ def main():
 #    if hasattr(signal, 'SIGHUP'):
 #        signal.signal(signal.SIGHUP, s.reinit)
 
-    print("#### app start")
+    LOGGER.debug("#### app start")
     s.run()
-    print("#### app done")
+    LOGGER.debug("#### app done")
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a unix
@@ -60,10 +60,14 @@ class Historical:
         self.options = options
         self.loop = None
         self.client = None
-        # self.batch_duration = 21600
-        self.batch_duration = 3600
-        self.start_time = 1546300800
-        self.end_time =   1546322400
+        for name in ['starttime', 'endtime', 'batchduration', 'expression', 'url']:
+            if not name in options:
+                raise RuntimeError("Missing required parameter '%s' in 'historical'" % name)
+        self.start_time = strtimegm(options['starttime'])
+        self.end_time = strtimegm(options['endtime'])
+        self.batch_duration = int(options['batchduration'])
+        self.queryparams = self.options['queryparams'] \
+            if 'queryparams' in self.options else None
         self.end_batch = self.start_time
 
     def make_next_request(self):
@@ -76,14 +80,15 @@ class Historical:
         post_data = {
             'from': self.start_batch,
             'until': self.end_batch,
-            'expression': 'active.ping-slash24.geo.netacuity.NA.*.probers.team-*.caida-sdsc.*.up_slash24_cnt',
-            'aggrScheme': 'db',
-            'maxPointsPerSeries': 100,
+            'expression': self.options['expression']
         }
+        if self.queryparams:
+            post_data.update(self.queryparams)
         body = urllib.urlencode(post_data)
-        url = 'https://ioda.caida.org/data/ts/json'
-        request = httpclient.HTTPRequest(url, method='POST', headers=None, body=body)
-        print("#### request: %d - %d" % (self.start_batch, self.end_batch))
+        request = httpclient.HTTPRequest(self.options['url'], method='POST',
+            headers=None, body=body)
+        LOGGER.debug("#### request: %d - %d" % (self.start_batch, self.end_batch))
+        LOGGER.debug("#### request body: %s" % body)
         response = self.client.fetch(request)
         self.loop.add_future(response, self.handle_response)
 
@@ -91,21 +96,28 @@ class Historical:
         # start the next request so it runs while we process the prev response
         self.make_next_request()
 
-        print("#### request time: %d" % response.result().request_time)
-        print("#### response code: %d" % response.result().code)
+        LOGGER.debug("#### request time: %d" % response.result().request_time)
+        LOGGER.debug("#### response code: %d" % response.result().code)
         result = json.loads(response.result().body)
-        print("#### response: %s - %s\n" % (result["queryParameters"]["from"], result["queryParameters"]["until"]))
+        LOGGER.debug("#### response: %s - %s\n" % (result['queryParameters']['from'], result['queryParameters']['until']))
+
+        for key in result['data']['series']:
+            t = int(result['data']['series'][key]['from'])
+            step = int(result['data']['series'][key]['step'])
+            for value in result['data']['series'][key]['values']:
+                print([key, value, t])
+                t += step
 
         if self.start_batch >= self.end_time:
             self.loop.stop()
 
     def run(self):
-        print("#### historic start")
+        LOGGER.debug("#### historic start")
         self.loop = ioloop.IOLoop.current()
         self.client = httpclient.AsyncHTTPClient()
         self.make_next_request()
         self.loop.start()
-        print("#### historic done")
+        LOGGER.debug("#### historic done")
 
 class Sentry:
     def __init__(self, optdict):
@@ -114,12 +126,15 @@ class Sentry:
         configname = self.options.get('config')
         if configname:
             self.load_config(configname)
-        self.source = Historical(self.config['datasource']['historical'])
+        if 'historical' in self.config['datasource'] and 'realtime' in self.config['datasource']:
+            raise RuntimeError("'datasource' may contain only one of 'historical' or 'realtime'")
+        if 'historical' in self.config['datasource']:
+            self.source = Historical(self.config['datasource']['historical'])
+        #if 'realtime' in self.config['datasource']:
+        #    self.source = Realtime(self.config['datasource']['realtime'])
 
     def load_config(self, filename):
         LOGGER.info('Load configuration: %s' % filename)
-        LOGGER.info('yaml: %s' % (not (not yaml)))
-        LOGGER.info('suffix: %s' % filename.endswith('.yaml'))
         loader = yaml.safe_load if yaml and filename.endswith('.yaml') else json.loads
         try:
             with open(filename) as f:
@@ -127,11 +142,13 @@ class Sentry:
                 self.config = loader(source)
         except (IOError, ValueError) as e:
             raise RuntimeError('Invalid config file %s %s' % (filename, str(e.args)))
+        except Exception as e:
+            raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
 
     def run(self):
-        print("#### sentry start")
+        LOGGER.debug("#### sentry start")
         self.source.run()
-        print("#### sentry done")
+        LOGGER.debug("#### sentry done")
 
 if __name__ == '__main__':
     try:
