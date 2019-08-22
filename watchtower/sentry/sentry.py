@@ -165,7 +165,9 @@ class Sentry:
     def __init__(self, options):
         self.options = options
         self.config = None
-        configname = os.path.abspath(self.options.config)
+        configname = self.options.config if self.options.config \
+            else default_cfg_file
+        configname = os.path.abspath(configname)
         if configname:
             self.load_config(configname)
         if 'historical' in self.config['datasource']:
@@ -231,32 +233,13 @@ class Sentry:
     def load_config(self, filename):
         logger.info('Load configuration: %s' % filename)
 
-        if False:
-            if filename.endswith('.yaml'):
-                if not yaml:
-                    raise RuntimeError("yaml not supported")
-                loader = yaml.safe_load
-            else:
-                loader = json.loads
-            try:
-                with open(filename) as f:
-                    source = COMMENT_RE.sub("", f.read())
-                    self.config = loader(source)
-            except (IOError, ValueError) as e:
-                raise RuntimeError('Invalid config file %s %s' %
-                    (filename, str(e.args)))
-            except Exception as e:
-                raise RuntimeError('Invalid config file %s\n%s' %
-                    (filename, str(e)))
-        else:
-            try:
-                with open(filename) as f:
-                    source = COMMENT_RE.sub("", f.read())
-                    self.config = yaml.safe_load(source)
-            except (IOError, ValueError) as e:
-                raise RuntimeError('Invalid config file %s %s' % (filename, str(e.args)))
-            except Exception as e:
-                raise RuntimeError('Invalid config file %s\n%s' % (filename, str(e)))
+        try:
+            with open(filename) as f:
+                source = COMMENT_RE.sub("", f.read())
+                self.config = yaml.safe_load(source)
+        except Exception as e:
+            raise UserError('Invalid config file %s\n%s' %
+                (filename, str(e))) from None
 
         # "jsonschema" actually validates the loaded data structure, not the
         # raw text, so works whether the text was yaml or json.
@@ -295,9 +278,9 @@ class Sentry:
             if glob[i] == '\\':
                 i += 1
                 if i >= len(glob):
-                    raise RuntimeError("illegal trailing '\\' in pattern")
+                    raise UserError("illegal trailing '\\' in pattern")
                 elif glob[i] not in glob_meta:
-                    raise RuntimeError("illegal escape '\\%s' in pattern" % glob[i])
+                    raise UserError("illegal escape '\\%s' in pattern" % glob[i])
                 elif glob[i] in re_meta:
                     regex += '\\'
                 regex += glob[i]
@@ -316,7 +299,7 @@ class Sentry:
                     i += 1
                 while True:
                     if i >= len(glob):
-                        raise RuntimeError("unmatched '[' in pattern")
+                        raise UserError("unmatched '[' in pattern")
                     if glob[i] == '\\' and i+1 < len(glob):
                         regex += glob[i:i+2]
                         i += 2
@@ -330,10 +313,10 @@ class Sentry:
                 i += 1
                 while True:
                     if i >= len(glob):
-                        raise RuntimeError("unmatched '{' in pattern")
+                        raise UserError("unmatched '{' in pattern")
                     elif glob[i] == '\\':
                         if i+1 >= len(glob):
-                            raise RuntimeError("illegal trailing '\\' in pattern")
+                            raise UserError("illegal trailing '\\' in pattern")
                         regex += glob[i:i+2]
                         i += 2
                     elif glob[i] == ',':
@@ -344,7 +327,7 @@ class Sentry:
                         i += 1
                         break
                     elif glob[i] in '.*{}[]()':
-                        raise RuntimeError("illegal character '%s' inside {} in pattern" % glob[i])
+                        raise UserError("illegal character '%s' inside {} in pattern" % glob[i])
                     else:
                         if glob[i] in re_meta:
                             regex += '\\'
@@ -352,7 +335,7 @@ class Sentry:
                         i += 1
             elif glob[i] == '(':
                 if parens > 0:
-                    raise RuntimeError("illegal nested parentheses in pattern")
+                    raise UserError("illegal nested parentheses in pattern")
                 parens += 1
                 regex += '('  # capturing group
                 i += 1
@@ -366,7 +349,7 @@ class Sentry:
                 regex += glob[i]
                 i += 1
         if parens > 0:
-            raise RuntimeError("unmatched '(' in pattern")
+            raise UserError("unmatched '(' in pattern")
         regex += '$'
         return regex
 
@@ -382,6 +365,8 @@ if __name__ == '__main__':
         help = ("name of configuration file [%s]" % default_cfg_file))
     parser.add_argument("-L", "--loglevel",
         help = ("logging level [%s]" % default_log_level))
+    parser.add_argument("--debug-glob",
+        help = ("convert a glob to a regex"))
     options = parser.parse_args()
 
     loghandler = logging.StreamHandler()
@@ -392,12 +377,15 @@ if __name__ == '__main__':
         '%H:%M:%S'))
     logging.getLogger().addHandler(loghandler) # root logger
     logger = logging.getLogger('watchtower.sentry') # sentry logger
-    logger.setLevel(options.loglevel)
+    logger.setLevel(options.loglevel if options.loglevel else default_log_level)
 
     logger.debug('#### logger initialized')
 
     # Main body logs all exceptions
     try:
+        if options.debug_glob:
+            print(Sentry.glob_to_regex(options.debug_glob))
+            sys.exit(0)
         exitstatus = main(options)
         # print("timestr: %d" % strtimegm(sys.argv[1]))
     except UserError as e:
