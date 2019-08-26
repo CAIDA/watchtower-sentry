@@ -61,19 +61,12 @@ class Datasource:
 
     @staticmethod
     def new(options):
-        if 'expression' not in options:
-            raise UserError('"datasource" missing required parameter '
-                '"expression".')
-        if 'historical' in options and 'realtime' in options:
-            raise UserError('"datasource" requires exactly one of '
-                '"historical" or "realtime"; found both.')
-        elif 'historical' in options:
+        if 'historical' in options:
             return Historical(options)
         elif 'realtime' in options:
             return Realtime(options)
         else:
-            raise UserError('"datasource" requires exactly one of '
-                '"historical" or "realtime"; found neither.')
+            return None
 
 class Historical(Datasource):
     def __init__(self, options):
@@ -223,8 +216,8 @@ class Sentry:
                             "batchduration": { "type": "number" },
                             "ignorenull":    { "type": "boolean" },
                             "queryparams":   { "type": "object" },
-                            "additionalProperties": { "not": {} },
                         },
+                        "additionalProperties": { "not": {} },
                         "required": ["starttime", "endtime", "url",
                             "batchduration"]
                     },
@@ -235,22 +228,19 @@ class Sentry:
                             "consumergroup": { "type": "string" },
                             "topicprefix":   { "type": "string" },
                             "channelname":   { "type": "string" },
-                            "additionalProperties": { "not": {} },
                         },
+                        "additionalProperties": { "not": {} },
                         "required": ["brokers", "consumergroup", "topicprefix",
                             "channelname"]
                     }
                 },
                 "additionalProperties": { "not": {} },
-# The error message for this is rather inscrutable, so we'll do our own check
-# in Datasource.__init__().
-#                # "datasource" requires "expression" plus exactly one of
-#                # "historical" or "realtime"
-#                # "required": ["expression"],
-#                "oneOf": [
-#                    { "required": ["expression", "historical"] },
-#                    { "required": ["expression", "realtime"] }
-#                ],
+                "required": ["expression"],
+                # "datasource" requires exactly 1 of "historical" or "realtime"
+                "oneOf": [
+                    { "required": ["historical"] },
+                    { "required": ["realtime"]   },
+                ],
             },
             "aggregation": {
                 "type": "object",
@@ -284,7 +274,30 @@ class Sentry:
         try:
             jsonschema.validate(instance = self.config, schema = self.schema)
         except jsonschema.exceptions.ValidationError as e:
+          if True:
+            msg = e.message
+            # Some messages begin with a potentially very long dump of the
+            # value of a json instance.  We strip the value, since we're going
+            # to print the path of that instance.
+            if msg.startswith(repr(e.instance)):
+                msg = msg[len(repr(e.instance)):]
+            path = ''.join([('[%d]' % i) if isinstance(i, int) \
+                else ('.%s' % str(i)) for i in e.absolute_path])
+            raise UserError(type(e).__name__ + ' in ' + filename + ' at root' +
+                path + ': ' + msg)
+          elif False:
             raise UserError(type(e).__name__ + ': ' + str(e))
+          elif False:
+            raise UserError(type(e).__name__ + ': ' + str(e.message))
+          else:
+            raise UserError(type(e).__name__ + ': ' +
+                "\nmessage:" + str(e.message) +
+                "\nschema:" + str(e.schema) +
+                "\nschema_path:" + str(e.schema_path) +
+                "\npath:" + str(e.path) +
+                "\nabsolute_path:" + str(e.absolute_path) +
+                "\ninstance:" + str(e.instance)
+                )
             return 1
 
     def run(self):
