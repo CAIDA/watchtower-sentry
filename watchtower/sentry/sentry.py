@@ -32,6 +32,10 @@ def main(options):
 #        signal.signal(signal.SIGHUP, s.reinit)
 
     s = Sentry(options)
+
+    logger.debug("#### main abort") # XXX
+    sys.exit(0)
+
     s.run()
     logger.debug("#### main done")
 
@@ -53,17 +57,38 @@ class UserError(RuntimeError):
 # end class UserError
 
 
-class Historical:
+class Datasource:
     def __init__(self, options):
+        print("###### Datasource.__init__")
         self.options = options
+
+    @staticmethod
+    def new(options):
+        if 'expression' not in options:
+            raise RuntimeError('"datasource" missing required parameter '
+                '"expression".')
+        if 'historical' in options and 'realtime' in options:
+            raise RuntimeError('"datasource" requires exactly one of '
+                '"historical" or "realtime"; found both.')
+        elif 'historical' in options:
+            return Historical(options)
+        elif 'realtime' in options:
+            return Realtime(options)
+        else:
+            raise RuntimeError('"datasource" requires exactly one of '
+                '"historical" or "realtime"; found neither.')
+
+class Historical(Datasource):
+    def __init__(self, options):
+        print("###### Historical.__init__")
+        super().__init__(options)
+        self.expression = options['expression']
+        self.options = options['historical']
         self.loop = None
         self.client = None
-        for name in ['starttime', 'endtime', 'batchduration', 'expression', 'url']:
-            if not name in options:
-                raise RuntimeError("Missing required parameter '%s' in 'historical'" % name)
-        self.start_time = strtimegm(options['starttime'])
-        self.end_time = strtimegm(options['endtime'])
-        self.batch_duration = int(options['batchduration'])
+        self.start_time = strtimegm(self.options['starttime'])
+        self.end_time = strtimegm(self.options['endtime'])
+        self.batch_duration = int(self.options['batchduration'])
         self.queryparams = self.options['queryparams'] \
             if 'queryparams' in self.options else None
         self.end_batch = self.start_time
@@ -78,7 +103,7 @@ class Historical:
         post_data = {
             'from': self.start_batch,
             'until': self.end_batch,
-            'expression': self.options['expression']
+            'expression': self.expression
         }
         if self.queryparams:
             post_data.update(self.queryparams)
@@ -110,8 +135,12 @@ class Historical:
 # end class Historical
 
 
-class Realtime:
+class Realtime(Datasource):
     def __init__(self, options):
+        print("###### Realtime.__init__")
+        super().__init__(options)
+        self.expression = options['expression']
+        options = options['realtime']
         self.tsk_reader = TskReader(
                 options['topicprefix'],
                 options['channelname'],
@@ -122,6 +151,10 @@ class Realtime:
         self.shutdown = False
         self.msg_time = None
         self.msgbuf = None
+        regex = Sentry.glob_to_regex(self.expression)
+        print("#### expression: " + self.expression)
+        print("#### regex:      " + regex)
+        self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
         if self.msgbuf == None or self.msgbuf != msgbuf:
@@ -133,7 +166,8 @@ class Realtime:
         self.msg_time = msg_time
 
     def _kv_cb(self, key, val):
-        print([key, val, self.msg_time])
+        if (self.expression_re.match(key)):
+            print([key, val, self.msg_time])
 
     def run(self):
         logger.debug("#### realtime start")
@@ -170,10 +204,7 @@ class Sentry:
         configname = os.path.abspath(configname)
         if configname:
             self.load_config(configname)
-        if 'historical' in self.config['datasource']:
-            self.source = Historical(self.config['datasource']['historical'])
-        elif 'realtime' in self.config['datasource']:
-            self.source = Realtime(self.config['datasource']['realtime'])
+        self.source = Datasource.new(self.config['datasource'])
 
     schema = {
         "title": "Watchtower-Sentry configuration schema",
@@ -182,6 +213,7 @@ class Sentry:
             "datasource": {
                 "type": "object",
                 "properties": {
+                    "expression":    { "type": "string" },
                     "historical": {
                         "type": "object",
                         "properties": {
@@ -190,11 +222,10 @@ class Sentry:
                             "url":           { "type": "string" },
                             "batchduration": { "type": "number" },
                             "ignorenull":    { "type": "boolean" },
-                            "expression":    { "type": "string" },
                             "queryparams":   { "type": "object" },
                         },
                         "required": ["starttime", "endtime", "url",
-                            "batchduration", "expression"]
+                            "batchduration"]
                     },
                     "realtime": {
                         "type": "object",
@@ -203,17 +234,20 @@ class Sentry:
                             "consumergroup": { "type": "string" },
                             "topicprefix":   { "type": "string" },
                             "channelname":   { "type": "string" },
-                            "pattern":       { "type": "string" },
                         },
                         "required": ["brokers", "consumergroup", "topicprefix",
-                            "channelname", "pattern"]
+                            "channelname"]
                     }
                 },
-                # "datasource" requires ONE of "historical" or "realtime"
-                "oneOf": [
-                    { "required": ["historical"] },
-                    { "required": ["realtime"] }
-                ],
+# The error message for this is rather inscrutable, so we'll do our own check
+# in Datasource.__init__().
+#                # "datasource" requires "expression" plus exactly one of
+#                # "historical" or "realtime"
+#                # "required": ["expression"],
+#                "oneOf": [
+#                    { "required": ["expression", "historical"] },
+#                    { "required": ["expression", "realtime"] }
+#                ],
             },
             "aggregation": {
                 "type": "object",
