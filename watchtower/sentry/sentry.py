@@ -33,9 +33,6 @@ def main(options):
 
     s = Sentry(options)
 
-    logger.debug("#### main abort") # XXX
-    sys.exit(0)
-
     s.run()
     logger.debug("#### main done")
 
@@ -65,17 +62,17 @@ class Datasource:
     @staticmethod
     def new(options):
         if 'expression' not in options:
-            raise RuntimeError('"datasource" missing required parameter '
+            raise UserError('"datasource" missing required parameter '
                 '"expression".')
         if 'historical' in options and 'realtime' in options:
-            raise RuntimeError('"datasource" requires exactly one of '
+            raise UserError('"datasource" requires exactly one of '
                 '"historical" or "realtime"; found both.')
         elif 'historical' in options:
             return Historical(options)
         elif 'realtime' in options:
             return Realtime(options)
         else:
-            raise RuntimeError('"datasource" requires exactly one of '
+            raise UserError('"datasource" requires exactly one of '
                 '"historical" or "realtime"; found neither.')
 
 class Historical(Datasource):
@@ -204,12 +201,15 @@ class Sentry:
         configname = os.path.abspath(configname)
         if configname:
             self.load_config(configname)
+        if 'loglevel' in self.config:
+            logger.setLevel(self.config['loglevel'])
         self.source = Datasource.new(self.config['datasource'])
 
     schema = {
         "title": "Watchtower-Sentry configuration schema",
         "type": "object",
         "properties": {
+            "loglevel": { "type": "string" },
             "datasource": {
                 "type": "object",
                 "properties": {
@@ -223,6 +223,7 @@ class Sentry:
                             "batchduration": { "type": "number" },
                             "ignorenull":    { "type": "boolean" },
                             "queryparams":   { "type": "object" },
+                            "additionalProperties": { "not": {} },
                         },
                         "required": ["starttime", "endtime", "url",
                             "batchduration"]
@@ -234,11 +235,13 @@ class Sentry:
                             "consumergroup": { "type": "string" },
                             "topicprefix":   { "type": "string" },
                             "channelname":   { "type": "string" },
+                            "additionalProperties": { "not": {} },
                         },
                         "required": ["brokers", "consumergroup", "topicprefix",
                             "channelname"]
                     }
                 },
+                "additionalProperties": { "not": {} },
 # The error message for this is rather inscrutable, so we'll do our own check
 # in Datasource.__init__().
 #                # "datasource" requires "expression" plus exactly one of
@@ -261,7 +264,8 @@ class Sentry:
                 "type": "object",
                 # XXX...
             },
-        }
+        },
+        "additionalProperties": { "not": {} },
     }
 
     def load_config(self, filename):
