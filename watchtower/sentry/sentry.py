@@ -25,7 +25,7 @@ COMMENT_RE = re.compile('//\s+.*$', re.M)
 
 
 def main(options):
-    logger.debug("#### main()")
+    logger.debug("main()")
 
 #    signal.signal(signal.SIGTERM, s.stop)
 #    signal.signal(signal.SIGINT, s.stop)
@@ -35,7 +35,7 @@ def main(options):
     s = Sentry(options)
 
     s.run()
-    logger.debug("#### main done")
+    logger.debug("main done")
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a unix
@@ -57,17 +57,20 @@ class UserError(RuntimeError):
 
 class Datasource:
     def __init__(self, options):
-        logger.debug("###### Datasource.__init__")
+        logger.debug("Datasource.__init__")
         self.done = False
         self.options = options
         self.incoming = []
-        self.ready_for_producer = True
-        self.ready_for_consumer = False
+        self.producable = True
+        self.consumable = False
+        # The reader thread produces data by reading it from its source and
+        # appending it to self.incoming.
         self.reader = threading.Thread(target = self.run_reader,
+            daemon = True, # program need not join() this thread to exit
             name = "\x1b[31mDS.reader")
         lock = threading.Lock()
-        self.cond_ready_for_producer = threading.Condition(lock)
-        self.cond_ready_for_consumer = threading.Condition(lock)
+        self.cond_producable = threading.Condition(lock)
+        self.cond_consumable = threading.Condition(lock)
 
     @staticmethod
     def new(options):
@@ -78,44 +81,55 @@ class Datasource:
         else:
             return None
 
+    # Consume data produced by the reader thread.
     def run(self):
-        logger.debug("###### Datasource.run()")
+        logger.debug("Datasource.run()")
         self.reader.start()
-        while True:
-            # wait for reader thread to fill self.incoming
-            data = None
-            with self.cond_ready_for_consumer:
-                logger.debug("cond_ready_for_consumer check")
-                while not self.ready_for_consumer and not self.done:
-                    logger.debug("cond_ready_for_consumer.wait")
-                    self.cond_ready_for_consumer.wait()
-                if self.ready_for_consumer:
-                    data = self.incoming
-                    self.incoming = None
-                elif self.done:
-                    logger.debug("###### Datasource.run() DONE")
-                    return
-                else:
-                    logger.critical("IMPOSSIBLE: self.incoming == None")
-                    sys.exit(127)
-                self.ready_for_consumer = False
-                logger.debug("cond_ready_for_consumer.wait DONE (%d items)" % (len(data)))
-            # Tell reader thread that self.incoming is ready to be refilled
-            with self.cond_ready_for_producer:
-                logger.debug("cond_ready_for_producer.notify")
-                self.ready_for_producer = True
-                self.cond_ready_for_producer.notify()
-            # Yield control to reader, so it can start to read the next set
-            # of data; it will then return control to this thread while it
-            # waits for the data.
-            time.sleep(0)
-            # Process the data.
-            for entry in data:
-                logger.info(str(entry))
+        try:
+            while True:
+                # wait for reader thread to fill self.incoming
+                data = None
+                with self.cond_consumable:
+                    logger.debug("cond_consumable check")
+                    while not self.consumable and not self.done:
+                        logger.debug("cond_consumable.wait")
+                        self.cond_consumable.wait()
+                    if self.consumable:
+                        data = self.incoming
+                        self.incoming = None
+                    elif self.done == True:
+                        logger.debug("Datasource.run(): end-of-stream")
+                        break
+                    else: # if self.done:
+                        logger.debug("Datasource.run(): error in reader")
+                        break
+                    self.consumable = False
+                    logger.debug("cond_consumable.wait DONE (%d items)" %
+                        (len(data)))
+                # Tell reader thread that self.incoming is ready to be refilled
+                with self.cond_producable:
+                    logger.debug("cond_producable.notify")
+                    self.producable = True
+                    self.cond_producable.notify()
+                # Yield control to the reader so it can request the next set of
+                # data; then while it waits for the response it will return
+                # control to this thread.
+                time.sleep(0)
+                # Process the data.
+                for entry in data:
+                    logger.info(str(entry))
+            self.reader.join()
+        except:
+            e = sys.exc_info()[1]
+            logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+            with self.cond_producable:
+                logger.debug("cond_producable.notify")
+                self.done = "exception in Datasource.run"
+                self.cond_producable.notify()
 
 class Historical(Datasource):
     def __init__(self, options):
-        logger.debug("###### Historical.__init__")
+        logger.debug("Historical.__init__")
         super().__init__(options)
         self.expression = options['expression']
         self.options = options['historical']
@@ -142,25 +156,27 @@ class Historical(Datasource):
         }
         if self.queryparams:
             post_data.update(self.queryparams)
-        logger.debug("#### request: %d - %d" % (self.start_batch, self.end_batch))
+        logger.debug("request: %d - %d" % (self.start_batch, self.end_batch))
         self.request = requests.post(self.options['url'], data = post_data, timeout = 60)
         return True
 
     def handle_response(self):
-        logger.debug("#### response code: %d" % self.request.status_code)
+        logger.debug("response code: %d" % self.request.status_code)
         self.request.raise_for_status()
         result = self.request.json()
-        logger.debug("#### response: %s - %s\n" % (result['queryParameters']['from'], result['queryParameters']['until']))
+        logger.debug("response: %s - %s" % (result['queryParameters']['from'], result['queryParameters']['until']))
 
         # wait for self.incoming to be empty
-        with self.cond_ready_for_producer:
-            logger.debug("cond_ready_for_producer check")
-            while not self.ready_for_producer:
-                logger.debug("cond_ready_for_producer.wait")
-                self.cond_ready_for_producer.wait()
+        with self.cond_producable:
+            logger.debug("cond_producable check")
+            while not self.producable and not self.done:
+                logger.debug("cond_producable.wait")
+                self.cond_producable.wait()
+            if self.done:
+                return
             self.incoming = [];
-            self.ready_for_producer = False
-            logger.debug("cond_ready_for_producer.wait DONE")
+            self.producable = False
+            logger.debug("cond_producable.wait DONE")
         for key in result['data']['series']:
             t = int(result['data']['series'][key]['from'])
             step = int(result['data']['series'][key]['step'])
@@ -169,27 +185,35 @@ class Historical(Datasource):
                 t += step
 
         # tell computation thread that self.incoming is now full
-        with self.cond_ready_for_consumer:
-            logger.debug("cond_ready_for_consumer.notify")
-            self.ready_for_consumer = True
-            self.cond_ready_for_consumer.notify()
+        with self.cond_consumable:
+            logger.debug("cond_consumable.notify")
+            self.consumable = True
+            self.cond_consumable.notify()
 
     def run_reader(self):
-        logger.debug("#### historic.run()")
-        while self.make_next_request():
-            self.handle_response()
-        logger.debug("#### historic done")
-        with self.cond_ready_for_consumer:
-            logger.debug("cond_ready_for_consumer.notify (done=True)")
-            self.done = True
-            self.cond_ready_for_consumer.notify()
+        try:
+            logger.debug("historic.run()")
+            while not self.done and self.make_next_request():
+                self.handle_response()
+            logger.debug("historic done")
+            with self.cond_consumable:
+                logger.debug("cond_consumable.notify (done=True)")
+                self.done = True
+                self.cond_consumable.notify()
+        except:
+            e = sys.exc_info()[1]
+            logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+            with self.cond_consumable:
+                logger.debug("cond_consumable.notify (exception)")
+                self.done = "exception in historical reader"
+                self.cond_consumable.notify()
 
 # end class Historical
 
 
 class Realtime(Datasource):
     def __init__(self, options):
-        logger.debug("###### Realtime.__init__")
+        logger.debug("Realtime.__init__")
         super().__init__(options)
         self.expression = options['expression']
         options = options['realtime']
@@ -200,12 +224,11 @@ class Realtime(Datasource):
                 options['brokers'],
                 None,
                 False)
-        self.shutdown = False
         self.msg_time = None
         self.msgbuf = None
         regex = Sentry.glob_to_regex(self.expression)
-        logger.debug("#### expression: " + self.expression)
-        logger.debug("#### regex:      " + regex)
+        logger.debug("expression: " + self.expression)
+        logger.debug("regex:      " + regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
@@ -213,7 +236,7 @@ class Realtime(Datasource):
             label = "new"
         else:
             label = "repeated"
-        logger.debug("#### %s msg: %d bytes at %d" % (label, msgbuflen, msg_time))
+        logger.debug("%s msg: %d bytes at %d" % (label, msgbuflen, msg_time))
         self.msgbuf = msgbuf
         self.msg_time = msg_time
 
@@ -222,46 +245,58 @@ class Realtime(Datasource):
             self.incoming.append([key, val, self.msg_time])
 
     def run_reader(self):
-        logger.debug("#### realtime.run()")
-        while not self.shutdown:
-            logger.debug("tsk_reader_poll")
-            msg = self.tsk_reader.poll(10000)
-            if msg is None:
-                break
-            if not msg.error():
-                # wait for self.incoming to be empty
-                with self.cond_ready_for_producer:
-                    logger.debug("cond_ready_for_producer check")
-                    while not self.ready_for_producer:
-                        logger.debug("cond_ready_for_producer.wait")
-                        self.cond_ready_for_producer.wait()
-                    self.incoming = [];
-                    self.ready_for_producer = False;
-                    logger.debug("cond_ready_for_producer.wait DONE")
-                self.tsk_reader.handle_msg(msg.value(),
-                    self._msg_cb, self._kv_cb)
-                eof_since_data = 0
-                # tell computation thread that self.incoming is now full
-                with self.cond_ready_for_consumer:
-                    logger.debug("cond_ready_for_consumer.notify")
-                    self.ready_for_consumer = True
-                    self.cond_ready_for_consumer.notify()
-            elif msg.error().code() == \
-                    confluent_kafka.KafkaError._PARTITION_EOF:
-                # no new messages, wait a bit and then force a flush
-                eof_since_data += 1
-                if eof_since_data >= 10:
+        try:
+            logger.debug("realtime.run()")
+            while not self.done:
+                logger.debug("tsk_reader_poll")
+                msg = self.tsk_reader.poll(10000)
+                if msg is None:
                     break
-            else:
-                logging.error("Unhandled Kafka error, shutting down")
-                logging.error(msg.error())
-                self.shutdown = True
-
-        logger.debug("#### realtime done")
-        with self.cond_ready_for_consumer:
-            logger.debug("cond_ready_for_consumer.notify (done=True)")
-            self.done = True
-            self.cond_ready_for_consumer.notify()
+                if not msg.error():
+                    # wait for self.incoming to be empty
+                    with self.cond_producable:
+                        logger.debug("cond_producable check")
+                        while not self.producable:
+                            logger.debug("cond_producable.wait")
+                            self.cond_producable.wait()
+                        self.incoming = [];
+                        self.producable = False;
+                        logger.debug("cond_producable.wait DONE")
+                    self.tsk_reader.handle_msg(msg.value(),
+                        self._msg_cb, self._kv_cb)
+                    eof_since_data = 0
+                    # tell computation thread that self.incoming is now full
+                    with self.cond_consumable:
+                        logger.debug("cond_consumable.notify")
+                        self.consumable = True
+                        self.cond_consumable.notify()
+                elif msg.error().code() == \
+                        confluent_kafka.KafkaError._PARTITION_EOF:
+                    # no new messages, wait a bit and then force a flush
+                    eof_since_data += 1
+                    if eof_since_data >= 10:
+                        break
+                else:
+                    logging.error("Unhandled Kafka error, shutting down")
+                    logging.error(msg.error())
+                    with self.cond_consumable:
+                        logger.debug("cond_consumable.notify (error)")
+                        self.done = "error in realtime reader"
+                        self.cond_consumable.notify()
+                    break
+            logger.debug("realtime done")
+            if not self.done:
+                with self.cond_consumable:
+                    logger.debug("cond_consumable.notify (done=True)")
+                    self.done = True
+                    self.cond_consumable.notify()
+        except:
+            e = sys.exc_info()[1]
+            logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+            with self.cond_consumable:
+                logger.debug("cond_consumable.notify (exception)")
+                self.done = "exception in realtime reader"
+                self.cond_consumable.notify()
 
 # end class Realtime
 
@@ -382,9 +417,9 @@ class Sentry:
             return 1
 
     def run(self):
-        logger.debug("#### sentry.run()")
+        logger.debug("sentry.run()")
         self.source.run()
-        logger.debug("#### sentry done")
+        logger.debug("sentry done")
 
     # Convert a DBATS glob to a regex.
     # Unlike DBATS, this also allows non-nested parens for aggregate grouping.
@@ -514,7 +549,7 @@ if __name__ == '__main__':
     logger = logging.getLogger('watchtower.sentry') # sentry logger
     logger.setLevel(options.loglevel if options.loglevel else default_log_level)
 
-    logger.debug('#### logger initialized')
+    logger.debug('logger initialized')
 
     # Main body logs all exceptions
     try:
@@ -526,10 +561,11 @@ if __name__ == '__main__':
     except UserError as e:
         logger.critical(str(e))
         exitstatus = 1
-    except Exception as e:
+    except:
         # possible programming error; include traceback
+        e = sys.exc_info()[1]
         logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
         exitstatus = 255
 
-    logger.debug('#### __main__ done')
+    logger.debug('__main__ done')
     sys.exit(exitstatus)
