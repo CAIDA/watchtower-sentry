@@ -10,6 +10,7 @@ import logging.handlers
 import traceback
 import argparse
 import requests
+import threading
 import jsonschema
 from pytimeseries.tsk.proxy import TskReader
 
@@ -24,7 +25,7 @@ COMMENT_RE = re.compile('//\s+.*$', re.M)
 
 
 def main(options):
-    logger.debug("#### main start")
+    logger.debug("#### main()")
 
 #    signal.signal(signal.SIGTERM, s.stop)
 #    signal.signal(signal.SIGINT, s.stop)
@@ -56,8 +57,17 @@ class UserError(RuntimeError):
 
 class Datasource:
     def __init__(self, options):
-        print("###### Datasource.__init__")
+        logger.debug("###### Datasource.__init__")
+        self.done = False
         self.options = options
+        self.incoming = []
+        self.ready_for_producer = True
+        self.ready_for_consumer = False
+        self.reader = threading.Thread(target = self.run_reader,
+            name = "\x1b[31mDS.reader")
+        lock = threading.Lock()
+        self.cond_ready_for_producer = threading.Condition(lock)
+        self.cond_ready_for_consumer = threading.Condition(lock)
 
     @staticmethod
     def new(options):
@@ -68,9 +78,44 @@ class Datasource:
         else:
             return None
 
+    def run(self):
+        logger.debug("###### Datasource.run()")
+        self.reader.start()
+        while True:
+            # wait for reader thread to fill self.incoming
+            data = None
+            with self.cond_ready_for_consumer:
+                logger.debug("cond_ready_for_consumer check")
+                while not self.ready_for_consumer and not self.done:
+                    logger.debug("cond_ready_for_consumer.wait")
+                    self.cond_ready_for_consumer.wait()
+                if self.ready_for_consumer:
+                    data = self.incoming
+                    self.incoming = None
+                elif self.done:
+                    logger.debug("###### Datasource.run() DONE")
+                    return
+                else:
+                    logger.critical("IMPOSSIBLE: self.incoming == None")
+                    sys.exit(127)
+                self.ready_for_consumer = False
+                logger.debug("cond_ready_for_consumer.wait DONE (%d items)" % (len(data)))
+            # Tell reader thread that self.incoming is ready to be refilled
+            with self.cond_ready_for_producer:
+                logger.debug("cond_ready_for_producer.notify")
+                self.ready_for_producer = True
+                self.cond_ready_for_producer.notify()
+            # Yield control to reader, so it can start to read the next set
+            # of data; it will then return control to this thread while it
+            # waits for the data.
+            time.sleep(0)
+            # Process the data.
+            for entry in data:
+                logger.info(str(entry))
+
 class Historical(Datasource):
     def __init__(self, options):
-        print("###### Historical.__init__")
+        logger.debug("###### Historical.__init__")
         super().__init__(options)
         self.expression = options['expression']
         self.options = options['historical']
@@ -107,27 +152,44 @@ class Historical(Datasource):
         result = self.request.json()
         logger.debug("#### response: %s - %s\n" % (result['queryParameters']['from'], result['queryParameters']['until']))
 
+        # wait for self.incoming to be empty
+        with self.cond_ready_for_producer:
+            logger.debug("cond_ready_for_producer check")
+            while not self.ready_for_producer:
+                logger.debug("cond_ready_for_producer.wait")
+                self.cond_ready_for_producer.wait()
+            self.incoming = [];
+            self.ready_for_producer = False
+            logger.debug("cond_ready_for_producer.wait DONE")
         for key in result['data']['series']:
             t = int(result['data']['series'][key]['from'])
             step = int(result['data']['series'][key]['step'])
             for value in result['data']['series'][key]['values']:
-                print([key, value, t])
+                self.incoming.append([key, value, t])
                 t += step
 
-    def run(self):
-        logger.debug("#### historic start")
-        # TODO: make next request in a thread parallel with processing the
-        # prev response
+        # tell computation thread that self.incoming is now full
+        with self.cond_ready_for_consumer:
+            logger.debug("cond_ready_for_consumer.notify")
+            self.ready_for_consumer = True
+            self.cond_ready_for_consumer.notify()
+
+    def run_reader(self):
+        logger.debug("#### historic.run()")
         while self.make_next_request():
             self.handle_response()
         logger.debug("#### historic done")
+        with self.cond_ready_for_consumer:
+            logger.debug("cond_ready_for_consumer.notify (done=True)")
+            self.done = True
+            self.cond_ready_for_consumer.notify()
 
 # end class Historical
 
 
 class Realtime(Datasource):
     def __init__(self, options):
-        print("###### Realtime.__init__")
+        logger.debug("###### Realtime.__init__")
         super().__init__(options)
         self.expression = options['expression']
         options = options['realtime']
@@ -142,8 +204,8 @@ class Realtime(Datasource):
         self.msg_time = None
         self.msgbuf = None
         regex = Sentry.glob_to_regex(self.expression)
-        print("#### expression: " + self.expression)
-        print("#### regex:      " + regex)
+        logger.debug("#### expression: " + self.expression)
+        logger.debug("#### regex:      " + regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
@@ -157,18 +219,33 @@ class Realtime(Datasource):
 
     def _kv_cb(self, key, val):
         if (self.expression_re.match(key)):
-            print([key, val, self.msg_time])
+            self.incoming.append([key, val, self.msg_time])
 
-    def run(self):
-        logger.debug("#### realtime start")
+    def run_reader(self):
+        logger.debug("#### realtime.run()")
         while not self.shutdown:
+            logger.debug("tsk_reader_poll")
             msg = self.tsk_reader.poll(10000)
             if msg is None:
                 break
             if not msg.error():
+                # wait for self.incoming to be empty
+                with self.cond_ready_for_producer:
+                    logger.debug("cond_ready_for_producer check")
+                    while not self.ready_for_producer:
+                        logger.debug("cond_ready_for_producer.wait")
+                        self.cond_ready_for_producer.wait()
+                    self.incoming = [];
+                    self.ready_for_producer = False;
+                    logger.debug("cond_ready_for_producer.wait DONE")
                 self.tsk_reader.handle_msg(msg.value(),
                     self._msg_cb, self._kv_cb)
                 eof_since_data = 0
+                # tell computation thread that self.incoming is now full
+                with self.cond_ready_for_consumer:
+                    logger.debug("cond_ready_for_consumer.notify")
+                    self.ready_for_consumer = True
+                    self.cond_ready_for_consumer.notify()
             elif msg.error().code() == \
                     confluent_kafka.KafkaError._PARTITION_EOF:
                 # no new messages, wait a bit and then force a flush
@@ -181,6 +258,10 @@ class Realtime(Datasource):
                 self.shutdown = True
 
         logger.debug("#### realtime done")
+        with self.cond_ready_for_consumer:
+            logger.debug("cond_ready_for_consumer.notify (done=True)")
+            self.done = True
+            self.cond_ready_for_consumer.notify()
 
 # end class Realtime
 
@@ -301,7 +382,7 @@ class Sentry:
             return 1
 
     def run(self):
-        logger.debug("#### sentry start")
+        logger.debug("#### sentry.run()")
         self.source.run()
         logger.debug("#### sentry done")
 
@@ -421,10 +502,13 @@ if __name__ == '__main__':
     options = parser.parse_args()
 
     loghandler = logging.StreamHandler()
-    loghandler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d ' +
-        '[%(process)d] ' +
-        # '%(threadName)s ' +
-        '%(levelname)-8s: %(name)s: %(message)s',
+    loghandler.setFormatter(logging.Formatter(
+        '%(asctime)s.%(msecs)03d '
+        # '%(name)s[%(process)d] '
+        '%(process)d:'
+        '%(threadName)-10s '
+        '%(levelname)-8s: %(message)s'
+        '\x1b[m',
         '%H:%M:%S'))
     logging.getLogger().addHandler(loghandler) # root logger
     logger = logging.getLogger('watchtower.sentry') # sentry logger
