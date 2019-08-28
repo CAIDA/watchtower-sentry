@@ -117,7 +117,7 @@ class Datasource:
                 time.sleep(0)
                 # Process the data.
                 for entry in data:
-                    logger.info(str(entry))
+                    yield entry
             self.reader.join()
         except:
             e = sys.exc_info()[1]
@@ -180,10 +180,10 @@ class Historical(Datasource):
         for key in result['data']['series']:
             t = int(result['data']['series'][key]['from'])
             step = int(result['data']['series'][key]['step'])
+            ascii_key = bytes(key, 'ascii')
             for value in result['data']['series'][key]['values']:
-                self.incoming.append([key, value, t])
+                self.incoming.append((ascii_key, value, t))
                 t += step
-
         # tell computation thread that self.incoming is now full
         with self.cond_consumable:
             logger.debug("cond_consumable.notify")
@@ -242,7 +242,7 @@ class Realtime(Datasource):
 
     def _kv_cb(self, key, val):
         if (self.expression_re.match(key)):
-            self.incoming.append([key, val, self.msg_time])
+            self.incoming.append((key, val, self.msg_time))
 
     def run_reader(self):
         try:
@@ -301,6 +301,77 @@ class Realtime(Datasource):
 # end class Realtime
 
 
+class AggSum:
+    def __init__(self, options, input):
+        logger.debug("AggSum.__init__")
+        self.input = input
+        self.options = options
+        self.expression = options['expression']
+        self.ascii_expression = bytes(self.expression, 'ascii')
+        self.datadict = dict() # map of (groupid, t) to [count, sum]
+        self.groupsize = int(options['groupsize']) if 'groupsize' in options \
+            else None
+
+        regex = Sentry.glob_to_regex(self.expression)
+        logger.debug("expression: " + self.expression)
+        logger.debug("regex:      " + regex)
+        self.expression_re = re.compile(bytes(regex, 'ascii'))
+
+    def run(self):
+      if False:
+        for entry in self.input():
+            logger.debug("AG: " + str(entry))
+            yield entry
+      else:
+        logger.debug("AggSum.run()")
+        for entry in self.input():
+            logger.debug("AG: " + str(entry))
+            key, value, t = entry
+            match = self.expression_re.match(key)
+            if not match:
+                continue
+            groupid = match.groups()
+            dictkey = (groupid, t)
+            if dictkey not in self.datadict:
+                self.datadict[dictkey] = [0, 0]
+            self.datadict[dictkey][0] += 1
+            if value is not None:
+                self.datadict[dictkey][1] += value
+
+            logger.debug("k=%s, v=%s, t=%d; count=%d, sum=%s" %
+                (str(groupid), str(value), t,
+                    self.datadict[dictkey][0], self.datadict[dictkey][1]))
+
+            if self.groupsize and \
+                    self.datadict[dictkey][0] == self.groupsize:
+                sum = value
+                sum = self.datadict[dictkey][1]
+                groupkey = self.ascii_expression
+                for part in groupid:
+                    logger.debug('part: ' + str(part))
+                    groupkey = re.sub(b"\([^)]*\)", part, groupkey)
+                yield (groupkey, sum, t)
+
+            # TODO: also check timeout
+
+        logger.debug("AggSum.run() done")
+
+# end class AggSum
+
+
+class Sink:
+    def __init__(self, input):
+        self.input = input
+
+    def run(self):
+        logger.debug("Sink.run()")
+        for entry in self.input():
+            logger.info("## " + str(entry))
+        logger.debug("Sink.run() done")
+
+# end class Sink
+
+
 class Sentry:
     def __init__(self, options):
         self.options = options
@@ -313,6 +384,8 @@ class Sentry:
         if 'loglevel' in self.config:
             logger.setLevel(self.config['loglevel'])
         self.source = Datasource.new(self.config['datasource'])
+        self.agg = AggSum(self.config['aggregation'], self.source.run)
+        self.sink = Sink(self.agg.run)
 
     schema = {
         "title": "Watchtower-Sentry configuration schema",
@@ -360,7 +433,14 @@ class Sentry:
             },
             "aggregation": {
                 "type": "object",
-                # XXX...
+                "properties": {
+                    "method":      { "type": "string" },
+                    "expression":  { "type": "string" },
+                    "groupsize":   { "type": "number" },
+                    "timeout":     { "type": "number" },
+                    "droppartial": { "type": "boolean" },
+                },
+                "required": ["method", "expression"],
             },
             "detection": {
                 "type": "object",
@@ -418,7 +498,7 @@ class Sentry:
 
     def run(self):
         logger.debug("sentry.run()")
-        self.source.run()
+        self.sink.run()
         logger.debug("sentry done")
 
     # Convert a DBATS glob to a regex.
