@@ -60,7 +60,6 @@ class Datasource:
     def __init__(self, options):
         logger.debug("Datasource.__init__")
         self.done = False
-        self.options = options
         self.incoming = []
         self.producable = True
         self.consumable = False
@@ -138,9 +137,8 @@ class Historical(Datasource):
         self.client = None
         self.start_time = strtimegm(self.options['starttime'])
         self.end_time = strtimegm(self.options['endtime'])
-        self.batch_duration = int(self.options['batchduration'])
-        self.queryparams = self.options['queryparams'] \
-            if 'queryparams' in self.options else None
+        self.batch_duration = self.options['batchduration']
+        self.queryparams = self.options.get('queryparams', None)
         self.end_batch = self.start_time
 
     def make_next_request(self):
@@ -302,6 +300,32 @@ class Realtime(Datasource):
 # end class Realtime
 
 
+class ToSigned:
+    def __init__(self, options, input):
+        logger.debug("ToSigned.__init__")
+        self.input = input
+
+    @staticmethod
+    def unsignedToSigned(number, bitlength):
+        if number is None:
+            return None
+        negativeBits = (-1 << (bitlength - 1))
+        if number & negativeBits:    # if lowest negative bit is on
+            number |= negativeBits   # turn them all on (i.e. sign extension)
+        return number
+
+    def run(self):
+        logger.debug("ToSigned.run()")
+        for entry in self.input():
+            logger.debug("TS: " + str(entry))
+            key, value, t = entry
+            value = self.unsignedToSigned(value, 64)
+            yield (key, value, t)
+
+# end class ToSigned
+
+
+
 class AggSum:
     class Agginfo:
         def __init__(self, firsttime, count, sum):
@@ -312,12 +336,11 @@ class AggSum:
     def __init__(self, options, input):
         logger.debug("AggSum.__init__")
         self.input = input
-        self.options = options
         self.expression = options['expression']
         self.ascii_expression = bytes(self.expression, 'ascii')
-        self.timeout = int(options['timeout'])
-        self.groupsize = int(options['groupsize']) if 'groupsize' in options \
-            else None
+        self.timeout = options['timeout']
+        self.groupsize = options.get('groupsize', None)
+        self.droppartial = options.get('droppartial', False)
 
         # aggdict stores intermediate results of aggregation.  It's ordered so
         # we can search for stale entries and finalize them.
@@ -334,7 +357,7 @@ class AggSum:
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     # replace parens in expression with group id
-    # (this could be optimized by precomputing substrings of expression)
+    # (this could be optimized by pre-splitting expression)
     def groupkey(self, groupid):
         groupkey = self.ascii_expression
         for part in groupid:
@@ -343,11 +366,6 @@ class AggSum:
         return groupkey
 
     def run(self):
-      if False:
-        for entry in self.input():
-            logger.debug("AG: " + str(entry))
-            yield entry
-      else:
         logger.debug("AggSum.run()")
         for entry in self.input():
             logger.debug("AG: " + str(entry))
@@ -395,7 +413,8 @@ class AggSum:
                 groupkey = self.groupkey(aggkey[0])
                 logger.debug("reached timeout for %s after %d entries" %
                     (str(aggkey), agginfo.count))
-                yield (groupkey, agginfo.sum, aggkey[1])
+                if not self.droppartial:
+                    yield (groupkey, agginfo.sum, aggkey[1])
                 self.complete_keys[groupkey] = True
 
             # TODO: prune very old entries from complete_keys
@@ -420,17 +439,16 @@ class Sink:
 
 class Sentry:
     def __init__(self, options):
-        self.options = options
         self.config = None
-        configname = self.options.config if self.options.config \
-            else default_cfg_file
+        configname = options.config if options.config else default_cfg_file
         configname = os.path.abspath(configname)
         if configname:
             self.load_config(configname)
         if 'loglevel' in self.config:
             logger.setLevel(self.config['loglevel'])
         self.source = Datasource.new(self.config['datasource'])
-        self.agg = AggSum(self.config['aggregation'], self.source.run)
+        self.convert = ToSigned(None, self.source.run)
+        self.agg = AggSum(self.config['aggregation'], self.convert.run)
         self.sink = Sink(self.agg.run)
 
     schema = {
