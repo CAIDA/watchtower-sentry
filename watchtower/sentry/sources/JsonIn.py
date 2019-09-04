@@ -17,10 +17,7 @@ class JsonIn(SentryModule.SentryModule):
 
     def __init__(self, config, input):
         logger.debug("JsonIn.__init__")
-        super().__init__(config, cfg_schema, logger)
-        if input is not None:
-            raise UserError('Module %s must be first in pipeline\n' %
-                (config['name']))
+        super().__init__(config, cfg_schema, logger, input, isSource = True)
         self.filename = config['file']
 
     def run(self):

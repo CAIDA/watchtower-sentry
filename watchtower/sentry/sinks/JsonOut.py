@@ -17,8 +17,7 @@ cfg_schema = {
 class JsonOut(SentryModule.SentryModule):
     def __init__(self, config, input):
         logger.debug("JsonOut.__init__")
-        super().__init__(config, cfg_schema, logger)
-        self.input = input
+        super().__init__(config, cfg_schema, logger, input, isSink = True)
         self.filename = config['file']
 
     def run(self):

@@ -6,8 +6,7 @@ logger = logging.getLogger(__name__)
 class ToSigned(SentryModule.SentryModule):
     def __init__(self, config, input):
         logger.debug("ToSigned.__init__")
-        super().__init__(config, None, logger)
-        self.input = input
+        super().__init__(config, None, logger, input)
 
     @staticmethod
     def unsignedToSigned(number, bitlength):

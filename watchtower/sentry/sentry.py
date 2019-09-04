@@ -66,9 +66,11 @@ class Sentry:
         if 'loglevel' in self.config:
             logging.getLogger().setLevel(self.config['loglevel'])
 
-        self.pipeline = []
-        prev_run = None
-        for modconfig in self.config['pipeline']:
+        self.last_mod = None
+        for i, modconfig in enumerate(self.config['pipeline']):
+            if self.last_mod and self.last_mod.isSink:
+                raise SentryModule.UserError('Module %s is a sink; it must be '
+                    'last in pipeline' % self.config['pipeline'][i-1]['name'])
             modname = modconfig['name']
             # load the module
             pymod = importlib.import_module(modname)
@@ -76,9 +78,17 @@ class Sentry:
             modprefix, classname = modname.rsplit(".", 1)
             pyclass = getattr(pymod, classname)
             # construct an instance of the class
-            mod = pyclass(modconfig, prev_run)
-            self.pipeline.append(mod)
-            prev_run = mod.run
+            input = self.last_mod.run if self.last_mod else None
+            mod = pyclass(modconfig, input)
+            if (not input) != mod.isSource:
+                sign = '' if mod.isSource else ' not'
+                raise SentryModule.UserError('Module %s is%s a source; it '
+                    'must%s be first in pipeline' % (modname, sign, sign))
+            self.last_mod = mod
+
+        if not self.last_mod.isSink:
+            raise SentryModule.UserError('Module %s is not a sink; it must not '
+                'be last in pipeline' % self.config['pipeline'][-1]['name'])
 
     def _load_config(self, filename):
         logger.info('Load configuration: %s' % filename)
@@ -95,7 +105,7 @@ class Sentry:
 
     def run(self):
         logger.debug("sentry.run()")
-        self.pipeline[-1].run()
+        self.last_mod.run()
         logger.debug("sentry done")
 
 # end class Sentry

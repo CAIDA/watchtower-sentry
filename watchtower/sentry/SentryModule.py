@@ -8,12 +8,16 @@ class UserError(RuntimeError):
 
 
 class SentryModule:
-    def __init__(self, config, cfg_schema, logger):
+    def __init__(self, config, cfg_schema, logger, input,
+            isSource = False, isSink = False):
         if cfg_schema:
             schema_validate(config, cfg_schema,
                 'pipeline item "' + config['name'] + '"')
         if 'loglevel' in config:
             logger.setLevel(config['loglevel'])
+        self.input = input
+        self.isSource = isSource
+        self.isSink = isSink
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a
