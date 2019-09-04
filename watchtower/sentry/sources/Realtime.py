@@ -27,7 +27,7 @@ class Realtime(Datasource):
 
     def __init__(self, config, input):
         logger.debug("Realtime.__init__")
-        super().__init__(config, cfg_schema, input)
+        super().__init__(config, cfg_schema, logger, input)
         self.expression = config['expression']
         self.tsk_reader = TskReader(
                 config['topicprefix'],

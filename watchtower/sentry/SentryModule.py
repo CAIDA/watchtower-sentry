@@ -8,9 +8,12 @@ class UserError(RuntimeError):
 
 
 class SentryModule:
-    def __init__(self, config, cfg_schema):
-        schema_validate(config, cfg_schema,
-            'pipeline item "' + config['name'] + '"')
+    def __init__(self, config, cfg_schema, logger):
+        if cfg_schema:
+            schema_validate(config, cfg_schema,
+                'pipeline item "' + config['name'] + '"')
+        if 'loglevel' in config:
+            logger.setLevel(config['loglevel'])
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a
