@@ -1,0 +1,117 @@
+import logging
+from collections import OrderedDict
+import re
+import time
+import SentryModule
+
+logger = logging.getLogger(__name__)
+
+class AggSum(SentryModule.SentryModule):
+    schema = {
+        "type": "object",
+        "properties": {
+            "name":        { "type": "string" },
+            "expression":  { "type": "string" },
+            "groupsize":   { "type": "number" },
+            "timeout":     { "type": "number" },
+            "droppartial": { "type": "boolean" },
+        },
+        "required": ["expression", "timeout"],
+        "additionalProperties": { "not": {} },
+    }
+
+    class _Agginfo:
+        def __init__(self, firsttime, count, sum):
+            self.firsttime = firsttime
+            self.count = count
+            self.sum = sum
+
+    def __init__(self, options, input):
+        logger.debug("AggSum.__init__")
+        super().__init__(options, self.schema)
+        self.input = input
+        self.expression = options['expression']
+        self.ascii_expression = bytes(self.expression, 'ascii')
+        self.timeout = options['timeout']
+        self.groupsize = options.get('groupsize', None)
+        self.droppartial = options.get('droppartial', False)
+
+        # aggdict stores intermediate results of aggregation.  It's ordered so
+        # we can search for stale entries and finalize them.
+        # key: (groupid, time)
+        #     groupid is a tuple of substrings matched by parens in expression.
+        # value: _Agginfo of [firsttime, count, sum]
+        self.aggdict = OrderedDict()
+
+        self.complete_keys = dict()
+
+        regex = SentryModule.glob_to_regex(self.expression)
+        logger.debug("expression: " + self.expression)
+        logger.debug("regex:      " + regex)
+        self.expression_re = re.compile(bytes(regex, 'ascii'))
+
+    # replace parens in expression with group id
+    # (this could be optimized by pre-splitting expression)
+    def groupkey(self, groupid):
+        groupkey = self.ascii_expression
+        for part in groupid:
+            logger.debug('part: ' + str(part))
+            groupkey = re.sub(b"\([^)]*\)", part, groupkey)
+        return groupkey
+
+    def run(self):
+        logger.debug("AggSum.run()")
+        for entry in self.input():
+            logger.debug("AG: " + str(entry))
+            key, value, t = entry
+            match = self.expression_re.match(key)
+            if not match:
+                continue
+            groupid = match.groups()
+            aggkey = (groupid, t)
+
+            if aggkey in self.complete_keys:
+                logger.error("unexpected data for complete aggregate (%s, %d)" %
+                    (self.groupkey(groupid), t))
+                continue
+
+            now = time.time()
+
+            if aggkey not in self.aggdict:
+                agginfo = AggSum._Agginfo(firsttime = now, count = 0, sum = 0)
+                self.aggdict[aggkey] = agginfo
+            else:
+                agginfo = self.aggdict[aggkey]
+            agginfo.count += 1
+            if value is not None:
+                agginfo.sum += value
+
+            logger.debug("k=%s, v=%s, t=%d; count=%d, sum=%s" %
+                (str(groupid), str(value), t,
+                    agginfo.count, agginfo.sum))
+
+            if self.groupsize and agginfo.count == self.groupsize:
+                groupkey = self.groupkey(groupid)
+                logger.debug("reached groupsize for %s after %ds" %
+                    (str(aggkey), now - agginfo.firsttime))
+                yield (groupkey, agginfo.sum, t)
+                self.complete_keys[groupkey] = True
+                del self.aggdict[aggkey]
+
+            expiry_time = now - self.timeout
+            while self.aggdict:
+                first_aggkey = next(iter(self.aggdict))
+                if self.aggdict[first_aggkey].firsttime > expiry_time:
+                    break
+                aggkey, agginfo = self.aggdict.popitem(False)
+                groupkey = self.groupkey(aggkey[0])
+                logger.debug("reached timeout for %s after %d entries" %
+                    (str(aggkey), agginfo.count))
+                if not self.droppartial:
+                    yield (groupkey, agginfo.sum, aggkey[1])
+                self.complete_keys[groupkey] = True
+
+            # TODO: prune very old entries from complete_keys
+
+        logger.debug("AggSum.run() done")
+
