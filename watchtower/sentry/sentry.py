@@ -20,6 +20,26 @@ except ImportError:
 COMMENT_RE = re.compile('//\s+.*$', re.M)
 
 
+cfg_schema = {
+    "title": "Watchtower-Sentry configuration schema",
+    "type": "object",
+    "properties": {
+        "loglevel": { "type": "string" },
+        "pipeline": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                },
+                "required": [ "name" ],
+            }
+        }
+    },
+    "additionalProperties": { "not": {} },
+}
+
+
 def main(options):
     logger.debug("main()")
 
@@ -31,34 +51,14 @@ def main(options):
     s = Sentry(options)
 
     s.run()
-    logger.debug("main done")
-
+    logger.debug("main() done")
 
 
 class Sentry:
-    schema = {
-        "title": "Watchtower-Sentry configuration schema",
-        "type": "object",
-        "properties": {
-            "loglevel": { "type": "string" },
-            "pipeline": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string" },
-                    },
-                    "required": [ "name" ],
-                }
-            }
-        },
-        "additionalProperties": { "not": {} },
-    }
 
     def __init__(self, options):
-        self.config = None
-        configname = options.config if options.config else default_cfg_file
-        configname = os.path.abspath(configname)
+        self.configfile = None
+        configname = os.path.abspath(options.configfile)
         if configname:
             self._load_config(configname)
         if 'loglevel' in self.config:
@@ -89,7 +89,7 @@ class Sentry:
             raise SentryModule.UserError('Invalid config file %s\n%s' %
                 (filename, str(e))) from None
 
-        SentryModule.schema_validate(self.config, self.schema, "root")
+        SentryModule.schema_validate(self.config, cfg_schema, "root")
 
     def run(self):
         logger.debug("sentry.run()")
@@ -104,10 +104,12 @@ if __name__ == '__main__':
     default_log_level = 'INFO'
     parser = argparse.ArgumentParser(description =
         "Detect outages in IODA data and send alerts to watchtower-alert.")
-    parser.add_argument("-c", "--config",
-        help = ("name of configuration file [%s]" % default_cfg_file))
+    parser.add_argument("-c", "--configfile",
+        help = ("name of configuration file [%s]" % default_cfg_file),
+        default = default_cfg_file)
     parser.add_argument("-L", "--loglevel",
-        help = ("logging level [%s]" % default_log_level))
+        help = ("logging level [%s]" % default_log_level),
+        default = default_log_level)
     parser.add_argument("--debug-glob",
         help = ("convert a glob to a regex"))
     options = parser.parse_args()
@@ -121,7 +123,7 @@ if __name__ == '__main__':
         '%(levelname)-8s: %(message)s'
         '\x1b[m',
         '%H:%M:%S'))
-    loglevel = options.loglevel if options.loglevel else default_log_level
+    loglevel = options.loglevel
     rootlogger = logging.getLogger()
     rootlogger.addHandler(loghandler)
     rootlogger.setLevel(loglevel)

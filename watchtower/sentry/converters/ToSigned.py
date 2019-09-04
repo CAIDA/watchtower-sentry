@@ -4,7 +4,7 @@ import SentryModule
 logger = logging.getLogger(__name__)
 
 class ToSigned(SentryModule.SentryModule):
-    def __init__(self, options, input):
+    def __init__(self, config, input):
         logger.debug("ToSigned.__init__")
         self.input = input
 

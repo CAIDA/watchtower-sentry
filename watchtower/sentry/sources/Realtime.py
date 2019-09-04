@@ -8,32 +8,32 @@ from pytimeseries.tsk.proxy import TskReader
 
 logger = logging.getLogger(__name__)
 
+cfg_schema = {
+    "type": "object",
+    "properties": {
+        "name":          { "type": "string" },
+        "expression":    { "type": "string" },
+        "brokers":       { "type": "string" },
+        "consumergroup": { "type": "string" },
+        "topicprefix":   { "type": "string" },
+        "channelname":   { "type": "string" },
+    },
+    "additionalProperties": { "not": {} },
+    "required": ["expression", "brokers", "consumergroup", "topicprefix",
+        "channelname"]
+}
 
 class Realtime(Datasource):
-    schema = {
-        "type": "object",
-        "properties": {
-            "name":          { "type": "string" },
-            "expression":    { "type": "string" },
-            "brokers":       { "type": "string" },
-            "consumergroup": { "type": "string" },
-            "topicprefix":   { "type": "string" },
-            "channelname":   { "type": "string" },
-        },
-        "additionalProperties": { "not": {} },
-        "required": ["expression", "brokers", "consumergroup", "topicprefix",
-            "channelname"]
-    }
 
-    def __init__(self, options, input):
+    def __init__(self, config, input):
         logger.debug("Realtime.__init__")
-        super().__init__(options, self.schema, input)
-        self.expression = options['expression']
+        super().__init__(config, cfg_schema, input)
+        self.expression = config['expression']
         self.tsk_reader = TskReader(
-                options['topicprefix'],
-                options['channelname'],
-                options['consumergroup'],
-                options['brokers'],
+                config['topicprefix'],
+                config['channelname'],
+                config['consumergroup'],
+                config['brokers'],
                 None,
                 False)
         self.msg_time = None

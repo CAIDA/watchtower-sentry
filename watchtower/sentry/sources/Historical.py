@@ -6,37 +6,37 @@ from sources._Datasource import Datasource
 
 logger = logging.getLogger(__name__)
 
+cfg_schema = {
+    "type": "object",
+    "properties": {
+        "name":          { "type": "string" },
+        "expression":    { "type": "string" },
+        "starttime":     { "type": "string" },
+        "endtime":       { "type": "string" },
+        "url":           { "type": "string" },
+        "batchduration": { "type": "number" },
+        "ignorenull":    { "type": "boolean" },
+        "queryparams":   { "type": "object" },
+    },
+    "additionalProperties": { "not": {} },
+    "required": ["expression", "starttime", "endtime", "url",
+        "batchduration"]
+}
 
 class Historical(Datasource):
-    schema = {
-        "type": "object",
-        "properties": {
-            "name":          { "type": "string" },
-            "expression":    { "type": "string" },
-            "starttime":     { "type": "string" },
-            "endtime":       { "type": "string" },
-            "url":           { "type": "string" },
-            "batchduration": { "type": "number" },
-            "ignorenull":    { "type": "boolean" },
-            "queryparams":   { "type": "object" },
-        },
-        "additionalProperties": { "not": {} },
-        "required": ["expression", "starttime", "endtime", "url",
-            "batchduration"]
-    }
 
-    def __init__(self, options, input):
+    def __init__(self, config, input):
         logger.debug("Historical.__init__")
-        super().__init__(options, self.schema, input)
-        self.options = options
+        super().__init__(config, cfg_schema, input)
         self.loop = None
         self.client = None
-        self.expression = self.options['expression']
-        self.start_time = SentryModule.strtimegm(self.options['starttime'])
-        self.end_time = SentryModule.strtimegm(self.options['endtime'])
-        self.batch_duration = self.options['batchduration']
-        self.queryparams = self.options.get('queryparams', None)
+        self.expression = config['expression']
+        self.start_time = SentryModule.strtimegm(config['starttime'])
+        self.end_time = SentryModule.strtimegm(config['endtime'])
+        self.batch_duration = config['batchduration']
+        self.queryparams = config.get('queryparams', None)
         self.end_batch = self.start_time
+        self.url = config['url']
 
     def make_next_request(self):
         self.start_batch = self.end_batch
@@ -53,7 +53,7 @@ class Historical(Datasource):
         if self.queryparams:
             post_data.update(self.queryparams)
         logger.debug("request: %d - %d" % (self.start_batch, self.end_batch))
-        self.request = requests.post(self.options['url'], data = post_data, timeout = 60)
+        self.request = requests.post(self.url, data = post_data, timeout = 60)
         return True
 
     def handle_response(self):

@@ -7,12 +7,12 @@ logger = logging.getLogger(__name__)
 
 
 class Datasource(SentryModule.SentryModule):
-    def __init__(self, options, schema, input):
+    def __init__(self, config, schema, input):
         logger.debug("Datasource.__init__")
         if input is not None:
             raise UserError('Module %s must be first in pipeline\n' %
-                (options['name']))
-        super().__init__(options, schema)
+                (config['name']))
+        super().__init__(config, schema)
         self.done = False
         self.incoming = []
         self.producable = True

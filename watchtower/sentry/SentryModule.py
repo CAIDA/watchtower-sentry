@@ -8,9 +8,9 @@ class UserError(RuntimeError):
 
 
 class SentryModule:
-    def __init__(self, options, schema):
-        schema_validate(options, schema,
-            'pipeline item "' + options['name'] + '"')
+    def __init__(self, config, cfg_schema):
+        schema_validate(config, cfg_schema,
+            'pipeline item "' + config['name'] + '"')
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a

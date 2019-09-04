@@ -6,19 +6,20 @@ import SentryModule
 
 logger = logging.getLogger(__name__)
 
+cfg_schema = {
+    "type": "object",
+    "properties": {
+        "name":        { "type": "string" },
+        "expression":  { "type": "string" },
+        "groupsize":   { "type": "number" },
+        "timeout":     { "type": "number" },
+        "droppartial": { "type": "boolean" },
+    },
+    "required": ["expression", "timeout"],
+    "additionalProperties": { "not": {} },
+}
+
 class AggSum(SentryModule.SentryModule):
-    schema = {
-        "type": "object",
-        "properties": {
-            "name":        { "type": "string" },
-            "expression":  { "type": "string" },
-            "groupsize":   { "type": "number" },
-            "timeout":     { "type": "number" },
-            "droppartial": { "type": "boolean" },
-        },
-        "required": ["expression", "timeout"],
-        "additionalProperties": { "not": {} },
-    }
 
     class _Agginfo:
         def __init__(self, firsttime, count, sum):
@@ -26,15 +27,15 @@ class AggSum(SentryModule.SentryModule):
             self.count = count
             self.sum = sum
 
-    def __init__(self, options, input):
+    def __init__(self, config, input):
         logger.debug("AggSum.__init__")
-        super().__init__(options, self.schema)
+        super().__init__(config, cfg_schema)
         self.input = input
-        self.expression = options['expression']
+        self.expression = config['expression']
         self.ascii_expression = bytes(self.expression, 'ascii')
-        self.timeout = options['timeout']
-        self.groupsize = options.get('groupsize', None)
-        self.droppartial = options.get('droppartial', False)
+        self.timeout = config['timeout']
+        self.groupsize = config.get('groupsize', None)
+        self.droppartial = config.get('droppartial', False)
 
         # aggdict stores intermediate results of aggregation.  It's ordered so
         # we can search for stale entries and finalize them.
