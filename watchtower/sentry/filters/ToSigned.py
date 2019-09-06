@@ -4,9 +4,9 @@ import SentryModule
 logger = logging.getLogger(__name__)
 
 class ToSigned(SentryModule.SentryModule):
-    def __init__(self, config, input):
+    def __init__(self, config, gen):
         logger.debug("ToSigned.__init__")
-        super().__init__(config, None, logger, input)
+        super().__init__(config, None, logger, gen)
 
     @staticmethod
     def unsignedToSigned(number, bitlength):
@@ -19,7 +19,7 @@ class ToSigned(SentryModule.SentryModule):
 
     def run(self):
         logger.debug("ToSigned.run()")
-        for entry in self.input():
+        for entry in self.gen():
             logger.debug("TS: %s", str(entry))
             key, value, t = entry
             value = self.unsignedToSigned(value, 64)

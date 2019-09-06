@@ -57,9 +57,9 @@ def sortedlist_add_remove(slist, additem, rmitem):
 
 
 class Median(SentryModule.SentryModule):
-    def __init__(self, config, input):
+    def __init__(self, config, gen):
         logger.debug("Median.__init__")
-        super().__init__(config, add_cfg_schema, logger, input)
+        super().__init__(config, add_cfg_schema, logger, gen)
         self.warmup = config['warmup']
         self.history_duration = config['history']
         if self.history_duration <= self.warmup:
@@ -75,7 +75,7 @@ class Median(SentryModule.SentryModule):
 
     def run(self):
         logger.debug("Median.run()")
-        for entry in self.input():
+        for entry in self.gen():
             logger.debug("MD: %s", str(entry))
             key, value, t = entry
 

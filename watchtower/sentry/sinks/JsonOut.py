@@ -12,15 +12,15 @@ add_cfg_schema = {
 }
 
 class JsonOut(SentryModule.SentryModule):
-    def __init__(self, config, input):
+    def __init__(self, config, gen):
         logger.debug("JsonOut.__init__")
-        super().__init__(config, add_cfg_schema, logger, input, isSink=True)
+        super().__init__(config, add_cfg_schema, logger, gen, isSink=True)
         self.filename = config['file']
 
     def run(self):
         logger.debug("JsonOut.run()")
         with open(self.filename, 'w') as f:
-            for entry in self.input():
+            for entry in self.gen():
                 key, value, t = entry
                 key = str(key, 'ascii')
                 json.dump((key, value, t), f, separators=(',', ':'))

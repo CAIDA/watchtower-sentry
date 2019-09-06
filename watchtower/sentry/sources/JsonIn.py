@@ -13,9 +13,9 @@ add_cfg_schema = {
 
 class JsonIn(SentryModule.SentryModule):
 
-    def __init__(self, config, input):
+    def __init__(self, config, gen):
         logger.debug("JsonIn.__init__")
-        super().__init__(config, add_cfg_schema, logger, input, isSource=True)
+        super().__init__(config, add_cfg_schema, logger, gen, isSource=True)
         self.filename = config['file']
 
     def run(self):

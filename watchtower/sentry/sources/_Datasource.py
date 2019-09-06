@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 class Datasource(SentryModule.SentryModule):
-    def __init__(self, config, add_cfg_schema, modlogger, input):
+    def __init__(self, config, add_cfg_schema, modlogger, gen):
         logger.debug("Datasource.__init__")
-        super().__init__(config, add_cfg_schema, modlogger, input,
+        super().__init__(config, add_cfg_schema, modlogger, gen,
             isSource=True)
         self.done = False
         self.incoming = []

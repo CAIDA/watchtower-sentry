@@ -22,9 +22,9 @@ add_cfg_schema = {
 
 class Realtime(Datasource):
 
-    def __init__(self, config, input):
+    def __init__(self, config, gen):
         logger.debug("Realtime.__init__")
-        super().__init__(config, add_cfg_schema, logger, input)
+        super().__init__(config, add_cfg_schema, logger, gen)
         self.expression = config['expression']
         self.tsk_reader = TskReader(
                 config['topicprefix'],
