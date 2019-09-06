@@ -21,11 +21,11 @@ def minimal_cfg_schema():
     return {
         "type": "object",
         "properties": {
-            "name":     { "type": "string" }, # module name
+            "module":   { "type": "string" }, # module name
             "loglevel": { "type": "string" }, # module loglevel
             # subclass can add more properties
         },
-        "required": [ "name" ], # subclass can add more required properties
+        "required": [ "module" ], # subclass can add more required properties
         # subclass can add more attributes
     }
 
@@ -42,6 +42,7 @@ class SentryModule:
         self.input = input
         self.isSource = isSource
         self.isSink = isSink
+        self.modname = config['module']
         cfg_schema = minimal_cfg_schema()
         cfg_schema["additionalProperties"] = False
         if add_cfg_schema:
@@ -52,10 +53,10 @@ class SentryModule:
                     cfg_schema['required'] += value
                 elif key in cfg_schema:
                     raise RuntimeError('%s attempted to modify %s attribute of '
-                        'cfg_schema' % (config['name'], key))
+                        'cfg_schema' % (self.modname, key))
                 else:
                     cfg_schema[key] = value
-        schema_validate(config, cfg_schema, 'module "' + config['name'] + '" ')
+        schema_validate(config, cfg_schema, 'module "' + self.modname + '" ')
 
 
 

@@ -65,7 +65,7 @@ class Median(SentryModule.SentryModule):
         if self.history_duration <= self.warmup:
             raise SentryModule.UserError('module %s: history (%d) must be '
                 'greater than ' 'warmup (%d)' %
-                (config['name'], self.history_duration, self.warmup))
+                (self.modname, self.history_duration, self.warmup))
         self.data = dict()
 
     class Data:

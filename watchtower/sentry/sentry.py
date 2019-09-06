@@ -62,8 +62,8 @@ class Sentry:
         for i, modconfig in enumerate(self.config['pipeline']):
             if self.last_mod and self.last_mod.isSink:
                 raise SentryModule.UserError('Module %s is a sink; it must be '
-                    'last in pipeline' % self.config['pipeline'][i-1]['name'])
-            modname = modconfig['name']
+                    'last in pipeline' % self.last_mod.modname)
+            modname = modconfig['module']
             # load the module
             pymod = importlib.import_module(modname)
             # get the module's class
@@ -80,7 +80,7 @@ class Sentry:
 
         if not self.last_mod.isSink:
             raise SentryModule.UserError('Module %s is not a sink; it must not '
-                'be last in pipeline' % self.config['pipeline'][-1]['name'])
+                'be last in pipeline' % self.last_mod.modname)
 
     def _load_config(self, filename):
         logger.info('Load configuration: %s' % filename)
