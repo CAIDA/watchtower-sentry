@@ -37,20 +37,20 @@ class Historical(Datasource):
         self.request = None
 
     def make_next_request(self):
-        self.start_batch = self.end_batch
-        if self.start_batch >= self.end_time:
+        start_batch = self.end_batch
+        if start_batch >= self.end_time:
             return False
         self.end_batch += self.batch_duration
         if self.end_batch >= self.end_time:
             self.end_batch = self.end_time
         post_data = {
-            'from': self.start_batch,
+            'from': start_batch,
             'until': self.end_batch,
             'expression': self.expression
         }
         if self.queryparams:
             post_data.update(self.queryparams)
-        logger.debug("request: %d - %d", self.start_batch, self.end_batch)
+        logger.debug("request: %d - %d", start_batch, self.end_batch)
         self.request = requests.post(self.url, data=post_data, timeout=60)
         return True
 
