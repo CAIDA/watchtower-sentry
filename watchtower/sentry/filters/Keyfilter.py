@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "expression": { "type": "string" }
+        "expression": {"type": "string"}
     },
     "required": ['expression']
 }
@@ -24,14 +24,13 @@ class Keyfilter(SentryModule.SentryModule):
         super().__init__(config, add_cfg_schema, logger, input)
         self.expression = config['expression']
         regex = SentryModule.glob_to_regex(self.expression)
-        logger.debug("expression: " + self.expression)
-        logger.debug("regex:      " + regex)
+        logger.debug("expression: %s", self.expression)
+        logger.debug("regex:      %s", regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     def run(self):
         logger.debug("Keyfilter.run()")
         for entry in self.input():
             key, value, t = entry
-            if (self.expression_re.match(key)):
+            if self.expression_re.match(key):
                 yield (key, value, t)
-

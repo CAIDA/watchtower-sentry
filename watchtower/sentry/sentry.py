@@ -1,8 +1,7 @@
 import sys
 import os
-import signal
+# import signal
 import re
-import json
 import logging
 import logging.handlers
 import traceback
@@ -17,14 +16,14 @@ try:
 except ImportError:
     yaml = None
 
-COMMENT_RE = re.compile('//\s+.*$', re.M)
+COMMENT_RE = re.compile(r'//\s+.*$', re.M)
 
 
 cfg_schema = {
     "title": "Watchtower-Sentry configuration schema",
     "type": "object",
     "properties": {
-        "loglevel": { "type": "string" },              # global loglevel
+        "loglevel": {"type": "string"},                # global loglevel
         "pipeline": {                                  # list of modules
             "type": "array",
             "items": SentryModule.minimal_cfg_schema() # module
@@ -46,6 +45,7 @@ def main(options):
 
     s.run()
     logger.debug("main() done")
+    return 0
 
 
 class Sentry:
@@ -59,7 +59,7 @@ class Sentry:
             logging.getLogger().setLevel(self.config['loglevel'])
 
         self.last_mod = None
-        for i, modconfig in enumerate(self.config['pipeline']):
+        for modconfig in self.config['pipeline']:
             if self.last_mod and self.last_mod.isSink:
                 raise SentryModule.UserError('Module %s is a sink; it must be '
                     'last in pipeline' % self.last_mod.modname)
@@ -70,9 +70,9 @@ class Sentry:
             modprefix, classname = modname.rsplit(".", 1)
             pyclass = getattr(pymod, classname)
             # construct an instance of the class
-            input = self.last_mod.run if self.last_mod else None
-            mod = pyclass(modconfig, input)
-            if (not input) != mod.isSource:
+            modrun = self.last_mod.run if self.last_mod else None
+            mod = pyclass(modconfig, modrun)
+            if (not modrun) != mod.isSource:
                 sign = '' if mod.isSource else ' not'
                 raise SentryModule.UserError('Module %s is%s a source; it '
                     'must%s be first in pipeline' % (modname, sign, sign))
@@ -83,7 +83,7 @@ class Sentry:
                 'be last in pipeline' % self.last_mod.modname)
 
     def _load_config(self, filename):
-        logger.info('Load configuration: %s' % filename)
+        logger.info('Load configuration: %s', filename)
 
         try:
             with open(filename) as f:
@@ -106,17 +106,17 @@ class Sentry:
 if __name__ == '__main__':
     default_cfg_file = 'sentry.yaml'
     default_log_level = 'INFO'
-    parser = argparse.ArgumentParser(description =
+    parser = argparse.ArgumentParser(description=
         "Detect outages in IODA data and send alerts to watchtower-alert.")
     parser.add_argument("-c", "--configfile",
-        help = ("name of configuration file [%s]" % default_cfg_file),
-        default = default_cfg_file)
+        help=("name of configuration file [%s]" % default_cfg_file),
+        default=default_cfg_file)
     parser.add_argument("-L", "--loglevel",
-        help = ("logging level [%s]" % default_log_level),
-        default = default_log_level)
+        help=("logging level [%s]" % default_log_level),
+        default=default_log_level)
     parser.add_argument("--debug-glob",
-        help = ("convert a glob to a regex"))
-    options = parser.parse_args()
+        help=("convert a glob to a regex"))
+    cmdline_options = parser.parse_args()
 
     loghandler = logging.StreamHandler()
     loghandler.setFormatter(logging.Formatter(
@@ -127,7 +127,7 @@ if __name__ == '__main__':
         '%(levelname)-8s: %(message)s'
         '\x1b[m',
         '%H:%M:%S'))
-    loglevel = options.loglevel
+    loglevel = cmdline_options.loglevel
     rootlogger = logging.getLogger()
     rootlogger.addHandler(loghandler)
     rootlogger.setLevel(loglevel)
@@ -135,10 +135,10 @@ if __name__ == '__main__':
 
     # Main body logs all exceptions
     try:
-        if options.debug_glob:
-            print(SentryModule.glob_to_regex(options.debug_glob))
+        if cmdline_options.debug_glob:
+            print(SentryModule.glob_to_regex(cmdline_options.debug_glob))
             sys.exit(0)
-        exitstatus = main(options)
+        exitstatus = main(cmdline_options)
         # print("timestr: %d" % strtimegm(sys.argv[1]))
     except SentryModule.UserError as e:
         logger.critical(str(e))
@@ -146,7 +146,7 @@ if __name__ == '__main__':
     except:
         # possible programming error; include traceback
         e = sys.exc_info()[1]
-        logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+        logger.critical("%s:\n%s", type(e).__name__, traceback.format_exc())
         exitstatus = 255
 
     logger.debug('__main__ done')

@@ -20,8 +20,7 @@ class ToSigned(SentryModule.SentryModule):
     def run(self):
         logger.debug("ToSigned.run()")
         for entry in self.input():
-            logger.debug("TS: " + str(entry))
+            logger.debug("TS: %s", str(entry))
             key, value, t = entry
             value = self.unsignedToSigned(value, 64)
             yield (key, value, t)
-

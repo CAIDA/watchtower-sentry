@@ -8,10 +8,10 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "expression":  { "type": "string" },
-        "groupsize":   { "type": "number" },
-        "timeout":     { "type": "number" },
-        "droppartial": { "type": "boolean" },
+        "expression":  {"type": "string"},
+        "groupsize":   {"type": "number"},
+        "timeout":     {"type": "number"},
+        "droppartial": {"type": "boolean"},
     },
     "required": ["expression", "timeout"]
 }
@@ -43,8 +43,8 @@ class AggSum(SentryModule.SentryModule):
         self.complete_keys = dict()
 
         regex = SentryModule.glob_to_regex(self.expression)
-        logger.debug("expression: " + self.expression)
-        logger.debug("regex:      " + regex)
+        logger.debug("expression: %s", self.expression)
+        logger.debug("regex:      %s", regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     # replace parens in expression with group id
@@ -52,14 +52,14 @@ class AggSum(SentryModule.SentryModule):
     def groupkey(self, groupid):
         groupkey = self.ascii_expression
         for part in groupid:
-            logger.debug('part: ' + str(part))
-            groupkey = re.sub(b"\([^)]*\)", part, groupkey)
+            logger.debug('part: %s', str(part))
+            groupkey = re.sub(rb"\([^)]*\)", part, groupkey)
         return groupkey
 
     def run(self):
         logger.debug("AggSum.run()")
         for entry in self.input():
-            logger.debug("AG: " + str(entry))
+            logger.debug("AG: %s", str(entry))
             key, value, t = entry
             match = self.expression_re.match(key)
             if not match:
@@ -68,14 +68,14 @@ class AggSum(SentryModule.SentryModule):
             aggkey = (groupid, t)
 
             if aggkey in self.complete_keys:
-                logger.error("unexpected data for complete aggregate (%s, %d)" %
-                    (self.groupkey(groupid), t))
+                logger.error("unexpected data for complete aggregate (%s, %d)",
+                    self.groupkey(groupid), t)
                 continue
 
             now = time.time()
 
             if aggkey not in self.aggdict:
-                agginfo = AggSum._Agginfo(firsttime = now, count = 0, sum = 0)
+                agginfo = AggSum._Agginfo(firsttime=now, count=0, sum=0)
                 self.aggdict[aggkey] = agginfo
             else:
                 agginfo = self.aggdict[aggkey]
@@ -83,14 +83,13 @@ class AggSum(SentryModule.SentryModule):
             if value is not None:
                 agginfo.sum += value
 
-            logger.debug("k=%s, v=%s, t=%d; count=%d, sum=%s" %
-                (str(groupid), str(value), t,
-                    agginfo.count, agginfo.sum))
+            logger.debug("k=%s, v=%s, t=%d; count=%d, sum=%s",
+                str(groupid), str(value), t, agginfo.count, agginfo.sum)
 
             if self.groupsize and agginfo.count == self.groupsize:
                 groupkey = self.groupkey(groupid)
-                logger.debug("reached groupsize for %s after %ds" %
-                    (str(aggkey), now - agginfo.firsttime))
+                logger.debug("reached groupsize for %s after %ds",
+                    str(aggkey), now - agginfo.firsttime)
                 yield (groupkey, agginfo.sum, t)
                 self.complete_keys[groupkey] = True
                 del self.aggdict[aggkey]
@@ -102,8 +101,8 @@ class AggSum(SentryModule.SentryModule):
                     break
                 aggkey, agginfo = self.aggdict.popitem(False)
                 groupkey = self.groupkey(aggkey[0])
-                logger.debug("reached timeout for %s after %d entries" %
-                    (str(aggkey), agginfo.count))
+                logger.debug("reached timeout for %s after %d entries",
+                    str(aggkey), agginfo.count)
                 if not self.droppartial:
                     yield (groupkey, agginfo.sum, aggkey[1])
                 self.complete_keys[groupkey] = True
@@ -111,4 +110,3 @@ class AggSum(SentryModule.SentryModule):
             # TODO: prune very old entries from complete_keys
 
         logger.debug("AggSum.run() done")
-

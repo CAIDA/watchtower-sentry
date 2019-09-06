@@ -2,24 +2,24 @@
 
 Configuration parameters:
     history: (number) Number of seconds of data over which to calculate.
-    warmup: (number) Minimum number of seconds of data to collect before 
+    warmup: (number) Minimum number of seconds of data to collect before
         generating output.
     inpainting: (object) Not yet implemented.
 """
 
 import logging
-import SentryModule
 import bisect
 from collections import deque
+import SentryModule
 
 logger = logging.getLogger(__name__)
 debug = True
 
 add_cfg_schema = {
     "properties": {
-        "history":       { "type": "number" },
-        "warmup":        { "type": "number" },
-    #   "inpainting":    { "type": "object" },
+        "history":       {"type": "number"},
+        "warmup":        {"type": "number"},
+    #   "inpainting":    {"type": "object"},
     },
     "required": ["history", "warmup"]
 }
@@ -38,19 +38,19 @@ def sortedlist_add_remove(slist, additem, rmitem):
     # expect, due to greater overhead.  And there are no trees in the
     # python standard library.  Consider
     # http://www.grantjenks.com/docs/sortedcontainers/.)
-    logger.debug("slist:  %s" % repr(slist))
+    logger.debug("slist:  %s", repr(slist))
     if rmitem < additem:
         left = bisect.bisect_right(slist, rmitem)
         right = bisect.bisect_left(slist, additem, lo=left)
-        logger.debug("rm=%d,add=%d: left=%d, right=%d" %
-            (rmitem, additem, left, right))
+        logger.debug("rm=%d,add=%d: left=%d, right=%d",
+            rmitem, additem, left, right)
         slist[left-1:right-1] = slist[left:right]
         slist[right-1] = additem
     elif additem < rmitem:
         left = bisect.bisect_right(slist, additem)
         right = bisect.bisect_left(slist, rmitem, lo=left)
-        logger.debug("add=%d,rm=%d: left=%d, right=%d" %
-            (additem, rmitem, left, right))
+        logger.debug("add=%d,rm=%d: left=%d, right=%d",
+            additem, rmitem, left, right)
         slist[left+1:right+1] = slist[left:right]
         slist[left] = additem
     # else, removing and inserting the same value is a no-op
@@ -76,7 +76,7 @@ class Median(SentryModule.SentryModule):
     def run(self):
         logger.debug("Median.run()")
         for entry in self.input():
-            logger.debug("MD: " + str(entry))
+            logger.debug("MD: %s", str(entry))
             key, value, t = entry
 
             if key not in self.data:
@@ -93,8 +93,8 @@ class Median(SentryModule.SentryModule):
             if not data.values:
                 # Warmup is done; initialize sorted list of values (including
                 # the new value)
-                data.values = sorted([v for v,t in data.queue])
-                logger.debug("sorted: %s" % repr(data.values))
+                data.values = sorted([v for v, t in data.queue])
+                logger.debug("sorted: %s", repr(data.values))
 
             else:
                 if data.queue[0][1] > window_start:
@@ -122,11 +122,10 @@ class Median(SentryModule.SentryModule):
             # happen when there's a time gap in new arrivals.
             while data.queue[0][1] <= window_start:
                 oldest = data.queue.popleft()
-                logger.warning("removing extra old item (%s, %d, %d)" %
-                    (key, value, t))
+                logger.warning("removing extra old item (%s, %d, %d)",
+                    key, value, t)
                 data.values.remove(oldest[0])
 
-            logger.debug("values: %s" % repr(data.values))
+            logger.debug("values: %s", repr(data.values))
 
             yield (key, data.values[len(data.values)//2], t)
-

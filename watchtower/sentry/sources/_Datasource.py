@@ -1,3 +1,4 @@
+import sys
 import logging
 import threading
 import time
@@ -7,18 +8,19 @@ logger = logging.getLogger(__name__)
 
 
 class Datasource(SentryModule.SentryModule):
-    def __init__(self, config, add_cfg_schema, logger, input):
+    def __init__(self, config, add_cfg_schema, modlogger, input):
         logger.debug("Datasource.__init__")
-        super().__init__(config, add_cfg_schema, logger, input, isSource = True)
+        super().__init__(config, add_cfg_schema, modlogger, input,
+            isSource=True)
         self.done = False
         self.incoming = []
         self.producable = True
         self.consumable = False
         # The reader thread produces data by reading it from its source and
         # appending it to self.incoming.
-        self.reader = threading.Thread(target = self.run_reader,
-            daemon = True, # program need not join() this thread to exit
-            name = "\x1b[31mDS.reader")
+        self.reader = threading.Thread(target=self.run_reader,
+            daemon=True, # program need not join() this thread to exit
+            name="\x1b[31mDS.reader")
         lock = threading.Lock()
         self.cond_producable = threading.Condition(lock)
         self.cond_consumable = threading.Condition(lock)
@@ -46,8 +48,8 @@ class Datasource(SentryModule.SentryModule):
                         logger.debug("Datasource.run(): error in reader")
                         break
                     self.consumable = False
-                    logger.debug("cond_consumable.wait DONE (%d items)" %
-                        (len(data)))
+                    logger.debug("cond_consumable.wait DONE (%d items)",
+                        len(data))
                 # Tell reader thread that self.incoming is ready to be refilled
                 with self.cond_producable:
                     logger.debug("cond_producable.notify")
@@ -68,4 +70,3 @@ class Datasource(SentryModule.SentryModule):
                 logger.debug("cond_producable.notify")
                 self.done = "exception in Datasource.run"
                 self.cond_producable.notify()
-

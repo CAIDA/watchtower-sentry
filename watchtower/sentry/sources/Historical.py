@@ -8,13 +8,13 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "expression":    { "type": "string" },
-        "starttime":     { "type": "string" },
-        "endtime":       { "type": "string" },
-        "url":           { "type": "string" },
-        "batchduration": { "type": "number" },
-        "ignorenull":    { "type": "boolean" },
-        "queryparams":   { "type": "object" },
+        "expression":    {"type": "string"},
+        "starttime":     {"type": "string"},
+        "endtime":       {"type": "string"},
+        "url":           {"type": "string"},
+        "batchduration": {"type": "number"},
+        "ignorenull":    {"type": "boolean"},
+        "queryparams":   {"type": "object"},
     },
     "required": ["expression", "starttime", "endtime", "url", "batchduration"]
 }
@@ -33,6 +33,7 @@ class Historical(Datasource):
         self.queryparams = config.get('queryparams', None)
         self.end_batch = self.start_time
         self.url = config['url']
+        self.request = None
 
     def make_next_request(self):
         self.start_batch = self.end_batch
@@ -48,15 +49,16 @@ class Historical(Datasource):
         }
         if self.queryparams:
             post_data.update(self.queryparams)
-        logger.debug("request: %d - %d" % (self.start_batch, self.end_batch))
-        self.request = requests.post(self.url, data = post_data, timeout = 60)
+        logger.debug("request: %d - %d", self.start_batch, self.end_batch)
+        self.request = requests.post(self.url, data=post_data, timeout=60)
         return True
 
     def handle_response(self):
-        logger.debug("response code: %d" % self.request.status_code)
+        logger.debug("response code: %d", self.request.status_code)
         self.request.raise_for_status()
         result = self.request.json()
-        logger.debug("response: %s - %s" % (result['queryParameters']['from'], result['queryParameters']['until']))
+        logger.debug("response: %s - %s", result['queryParameters']['from'],
+            result['queryParameters']['until'])
 
         # wait for self.incoming to be empty
         with self.cond_producable:
@@ -66,7 +68,7 @@ class Historical(Datasource):
                 self.cond_producable.wait()
             if self.done:
                 return
-            self.incoming = [];
+            self.incoming = []
             self.producable = False
             logger.debug("cond_producable.wait DONE")
         for key in result['data']['series']:
@@ -99,4 +101,3 @@ class Historical(Datasource):
                 logger.debug("cond_consumable.notify (exception)")
                 self.done = "exception in historical reader"
                 self.cond_consumable.notify()
-

@@ -1,12 +1,12 @@
 import logging
-import SentryModule
 import json
+import SentryModule
 
 logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "file": { "type": "string" }
+        "file": {"type": "string"}
     },
     "required": ['file']
 }
@@ -14,7 +14,7 @@ add_cfg_schema = {
 class JsonOut(SentryModule.SentryModule):
     def __init__(self, config, input):
         logger.debug("JsonOut.__init__")
-        super().__init__(config, add_cfg_schema, logger, input, isSink = True)
+        super().__init__(config, add_cfg_schema, logger, input, isSink=True)
         self.filename = config['file']
 
     def run(self):
@@ -23,7 +23,6 @@ class JsonOut(SentryModule.SentryModule):
             for entry in self.input():
                 key, value, t = entry
                 key = str(key, 'ascii')
-                json.dump((key, value, t), f, separators=(',',':'))
+                json.dump((key, value, t), f, separators=(',', ':'))
                 f.write('\n')
         logger.debug("JsonOut.run() done")
-

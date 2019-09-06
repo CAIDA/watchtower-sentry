@@ -1,20 +1,20 @@
 import sys
 import logging
 import re
+from pytimeseries.tsk.proxy import TskReader
 import SentryModule
 from sources._Datasource import Datasource
-from pytimeseries.tsk.proxy import TskReader
 
 
 logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "expression":    { "type": "string" },
-        "brokers":       { "type": "string" },
-        "consumergroup": { "type": "string" },
-        "topicprefix":   { "type": "string" },
-        "channelname":   { "type": "string" },
+        "expression":    {"type": "string"},
+        "brokers":       {"type": "string"},
+        "consumergroup": {"type": "string"},
+        "topicprefix":   {"type": "string"},
+        "channelname":   {"type": "string"},
     },
     "required": ["expression", "brokers", "consumergroup", "topicprefix",
         "channelname"]
@@ -36,21 +36,21 @@ class Realtime(Datasource):
         self.msg_time = None
         self.msgbuf = None
         regex = SentryModule.glob_to_regex(self.expression)
-        logger.debug("expression: " + self.expression)
-        logger.debug("regex:      " + regex)
+        logger.debug("expression: %s", self.expression)
+        logger.debug("regex:      %s", regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
-        if self.msgbuf == None or self.msgbuf != msgbuf:
+        if self.msgbuf is None or self.msgbuf != msgbuf:
             label = "new"
         else:
             label = "repeated"
-        logger.debug("%s msg: %d bytes at %d" % (label, msgbuflen, msg_time))
+        logger.debug("%s msg: %d bytes at %d", label, msgbuflen, msg_time)
         self.msgbuf = msgbuf
         self.msg_time = msg_time
 
     def _kv_cb(self, key, val):
-        if (self.expression_re.match(key)):
+        if self.expression_re.match(key):
             self.incoming.append((key, val, self.msg_time))
 
     def run_reader(self):
@@ -68,8 +68,8 @@ class Realtime(Datasource):
                         while not self.producable:
                             logger.debug("cond_producable.wait")
                             self.cond_producable.wait()
-                        self.incoming = [];
-                        self.producable = False;
+                        self.incoming = []
+                        self.producable = False
                         logger.debug("cond_producable.wait DONE")
                     self.tsk_reader.handle_msg(msg.value(),
                         self._msg_cb, self._kv_cb)
@@ -106,4 +106,3 @@ class Realtime(Datasource):
                 logger.debug("cond_consumable.notify (exception)")
                 self.done = "exception in realtime reader"
                 self.cond_consumable.notify()
-

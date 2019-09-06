@@ -12,20 +12,20 @@ Filters and sinks must implement run(self) as function that reads (key, value,
 time) tuples by iterating over the input() generator.
 """
 
-import jsonschema
 import calendar
 import time
+import jsonschema
 
 
 def minimal_cfg_schema():
     return {
         "type": "object",
         "properties": {
-            "module":   { "type": "string" }, # module name
-            "loglevel": { "type": "string" }, # module loglevel
+            "module":   {"type": "string"}, # module name
+            "loglevel": {"type": "string"}, # module loglevel
             # subclass can add more properties
         },
-        "required": [ "module" ], # subclass can add more required properties
+        "required": ["module"], # subclass can add more required properties
         # subclass can add more attributes
     }
 
@@ -36,7 +36,7 @@ class UserError(RuntimeError):
 
 class SentryModule:
     def __init__(self, config, add_cfg_schema, logger, input,
-            isSource = False, isSink = False):
+            isSource=False, isSink=False):
         if 'loglevel' in config:
             logger.setLevel(config['loglevel'])
         self.input = input
@@ -63,14 +63,14 @@ class SentryModule:
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a
 # unix timestamp
 # @staticmethod
-def strtimegm(str):
-    for fmt in [ "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d" ]:
+def strtimegm(s):
+    for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
         try:
-            return calendar.timegm(time.strptime(str, fmt))
+            return calendar.timegm(time.strptime(s, fmt))
         except:
             continue
     raise ValueError("Invalid date '%s'; expected 'YYYY-mm-dd [HH:MM[:SS]]'"
-        % str)
+        % s)
 
 
 # @staticmethod
@@ -78,7 +78,7 @@ def schema_validate(instance, schema, name):
     # "jsonschema" actually validates the loaded data structure, not the
     # raw text, so works whether the text was yaml or json.
     try:
-        jsonschema.validate(instance = instance, schema = schema)
+        jsonschema.validate(instance=instance, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
       if True:
         msg = e.message
@@ -112,13 +112,16 @@ def schema_validate(instance, schema, name):
 # Unlike DBATS, this also allows non-nested parens for aggregate grouping.
 #
 # From DBATS docs:
-# The pattern is similar to shell filename globbing, except that hierarchical components are separated by '.' instead of '/'.
+# The pattern is similar to shell filename globbing, except that hierarchical
+# components are separated by '.' instead of '/'.
 #   * matches any zero or more characters (except '.')
 #   ? matches any one character (except '.')
 #   [...] matches any one character in the character class (except '.')
 #       A leading '^' negates the character class
-#       Two characters separated by '-' matches any ASCII character between the two characters, inclusive
-#   {...} matches any one string of characters in the comma-separated list of strings
+#       Two characters separated by '-' matches any ASCII character between
+#           the two characters, inclusive
+#   {...} matches any one string of characters in the comma-separated list of
+#       strings
 #   Any other character matches itself.
 #   Any special character can have its special meaning removed by preceeding it with '\'.
 # @staticmethod
@@ -206,4 +209,3 @@ def glob_to_regex(glob):
         raise UserError("unmatched '(' in pattern")
     regex += '$'
     return regex
-
