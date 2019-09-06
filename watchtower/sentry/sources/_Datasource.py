@@ -2,6 +2,7 @@ import sys
 import logging
 import threading
 import time
+import traceback
 import SentryModule
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ class Datasource(SentryModule.SentryModule):
             self.reader.join()
         except:
             e = sys.exc_info()[1]
-            logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+            logger.critical("%s:\n%s", type(e).__name__, traceback.format_exc())
             with self.cond_producable:
                 logger.debug("cond_producable.notify")
                 self.done = "exception in Datasource.run"

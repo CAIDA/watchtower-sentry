@@ -1,6 +1,7 @@
 import sys
 import logging
 import re
+import traceback
 from pytimeseries.tsk.proxy import TskReader
 import SentryModule
 from sources._Datasource import Datasource
@@ -101,7 +102,7 @@ class Realtime(Datasource):
                     self.cond_consumable.notify()
         except:
             e = sys.exc_info()[1]
-            logger.critical(type(e).__name__ + ':\n' + traceback.format_exc())
+            logger.critical("%s:\n%s", type(e).__name__, traceback.format_exc())
             with self.cond_consumable:
                 logger.debug("cond_consumable.notify (exception)")
                 self.done = "exception in realtime reader"
