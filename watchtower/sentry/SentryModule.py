@@ -1,3 +1,17 @@
+"""
+Base class for Watchtower Sentry modules.
+
+Derived classes can implement a source, a filter, or a sink module.
+Derived classes must implement an __init__(self, config, input) method that
+calls super().__init__(config, cfg_schema, logger, input);
+sources and sinks must supply an additional parameter isSource=True or
+isSink=True.
+Sources and filters must implement run(self) as a python generator function
+that yields (key, value, time) tuples.
+Filters and sinks must implement run(self) as function that reads (key, value,
+time) tuples by iterating over the input() generator.
+"""
+
 import jsonschema
 import calendar
 import time
