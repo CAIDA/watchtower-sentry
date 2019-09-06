@@ -4,20 +4,17 @@ import json
 
 logger = logging.getLogger(__name__)
 
-cfg_schema = {
-    "type": "object",
+add_cfg_schema = {
     "properties": {
-        "name":        { "type": "string" },
-        "file":        { "type": "string" },
+        "file": { "type": "string" }
     },
-    "required": ["file"],
+    "required": ['file']
 }
-
 
 class JsonOut(SentryModule.SentryModule):
     def __init__(self, config, input):
         logger.debug("JsonOut.__init__")
-        super().__init__(config, cfg_schema, logger, input, isSink = True)
+        super().__init__(config, add_cfg_schema, logger, input, isSink = True)
         self.filename = config['file']
 
     def run(self):

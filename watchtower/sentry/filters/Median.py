@@ -15,13 +15,11 @@ from collections import deque
 logger = logging.getLogger(__name__)
 debug = True
 
-cfg_schema = {
-    "type": "object",
+add_cfg_schema = {
     "properties": {
-        "name":          { "type": "string" },
         "history":       { "type": "number" },
-#       "inpainting":    { "type": "object" },
         "warmup":        { "type": "number" },
+    #   "inpainting":    { "type": "object" },
     },
     "required": ["history", "warmup"]
 }
@@ -61,7 +59,7 @@ def sortedlist_add_remove(slist, additem, rmitem):
 class Median(SentryModule.SentryModule):
     def __init__(self, config, input):
         logger.debug("Median.__init__")
-        super().__init__(config, cfg_schema, logger, input)
+        super().__init__(config, add_cfg_schema, logger, input)
         self.warmup = config['warmup']
         self.history_duration = config['history']
         if self.history_duration <= self.warmup:

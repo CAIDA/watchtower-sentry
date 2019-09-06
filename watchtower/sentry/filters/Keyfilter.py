@@ -11,19 +11,17 @@ import SentryModule
 
 logger = logging.getLogger(__name__)
 
-cfg_schema = {
-    "type": "object",
+add_cfg_schema = {
     "properties": {
-        "name":          { "type": "string" },
-        "expression":    { "type": "string" },
+        "expression": { "type": "string" }
     },
-    "required": ["expression"]
+    "required": ['expression']
 }
 
 class Keyfilter(SentryModule.SentryModule):
     def __init__(self, config, input):
         logger.debug("Keyfilter.__init__")
-        super().__init__(config, cfg_schema, logger, input)
+        super().__init__(config, add_cfg_schema, logger, input)
         self.expression = config['expression']
         regex = SentryModule.glob_to_regex(self.expression)
         logger.debug("expression: " + self.expression)

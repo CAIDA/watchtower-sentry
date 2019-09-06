@@ -8,17 +8,14 @@ from pytimeseries.tsk.proxy import TskReader
 
 logger = logging.getLogger(__name__)
 
-cfg_schema = {
-    "type": "object",
+add_cfg_schema = {
     "properties": {
-        "name":          { "type": "string" },
         "expression":    { "type": "string" },
         "brokers":       { "type": "string" },
         "consumergroup": { "type": "string" },
         "topicprefix":   { "type": "string" },
         "channelname":   { "type": "string" },
     },
-    "additionalProperties": { "not": {} },
     "required": ["expression", "brokers", "consumergroup", "topicprefix",
         "channelname"]
 }
@@ -27,7 +24,7 @@ class Realtime(Datasource):
 
     def __init__(self, config, input):
         logger.debug("Realtime.__init__")
-        super().__init__(config, cfg_schema, logger, input)
+        super().__init__(config, add_cfg_schema, logger, input)
         self.expression = config['expression']
         self.tsk_reader = TskReader(
                 config['topicprefix'],

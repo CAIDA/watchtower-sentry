@@ -6,17 +6,14 @@ import SentryModule
 
 logger = logging.getLogger(__name__)
 
-cfg_schema = {
-    "type": "object",
+add_cfg_schema = {
     "properties": {
-        "name":        { "type": "string" },
         "expression":  { "type": "string" },
         "groupsize":   { "type": "number" },
         "timeout":     { "type": "number" },
         "droppartial": { "type": "boolean" },
     },
-    "required": ["expression", "timeout"],
-    "additionalProperties": { "not": {} },
+    "required": ["expression", "timeout"]
 }
 
 class AggSum(SentryModule.SentryModule):
@@ -29,7 +26,7 @@ class AggSum(SentryModule.SentryModule):
 
     def __init__(self, config, input):
         logger.debug("AggSum.__init__")
-        super().__init__(config, cfg_schema, logger, input)
+        super().__init__(config, add_cfg_schema, logger, input)
         self.expression = config['expression']
         self.ascii_expression = bytes(self.expression, 'ascii')
         self.timeout = config['timeout']

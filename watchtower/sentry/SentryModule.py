@@ -3,7 +3,7 @@ Base class for Watchtower Sentry modules.
 
 Derived classes can implement a source, a filter, or a sink module.
 Derived classes must implement an __init__(self, config, input) method that
-calls super().__init__(config, cfg_schema, logger, input);
+calls super().__init__(config, add_cfg_schema, logger, input);
 sources and sinks must supply an additional parameter isSource=True or
 isSink=True.
 Sources and filters must implement run(self) as a python generator function
@@ -17,21 +17,46 @@ import calendar
 import time
 
 
+def minimal_cfg_schema():
+    return {
+        "type": "object",
+        "properties": {
+            "name":     { "type": "string" }, # module name
+            "loglevel": { "type": "string" }, # module loglevel
+            # subclass can add more properties
+        },
+        "required": [ "name" ], # subclass can add more required properties
+        # subclass can add more attributes
+    }
+
+
 class UserError(RuntimeError):
     pass
 
 
 class SentryModule:
-    def __init__(self, config, cfg_schema, logger, input,
+    def __init__(self, config, add_cfg_schema, logger, input,
             isSource = False, isSink = False):
-        if cfg_schema:
-            schema_validate(config, cfg_schema,
-                'pipeline item "' + config['name'] + '"')
         if 'loglevel' in config:
             logger.setLevel(config['loglevel'])
         self.input = input
         self.isSource = isSource
         self.isSink = isSink
+        cfg_schema = minimal_cfg_schema()
+        cfg_schema["additionalProperties"] = False
+        if add_cfg_schema:
+            for key, value in add_cfg_schema.items():
+                if key == 'properties':
+                    cfg_schema['properties'].update(value)
+                elif key == 'required':
+                    cfg_schema['required'] += value
+                elif key in cfg_schema:
+                    raise RuntimeError('%s attempted to modify %s attribute of '
+                        'cfg_schema' % (config['name'], key))
+                else:
+                    cfg_schema[key] = value
+        schema_validate(config, cfg_schema, 'module "' + config['name'] + '" ')
+
 
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a

@@ -24,21 +24,13 @@ cfg_schema = {
     "title": "Watchtower-Sentry configuration schema",
     "type": "object",
     "properties": {
-        "loglevel": { "type": "string" },             # global loglevel
-        "pipeline": {                                 # list of modules
+        "loglevel": { "type": "string" },              # global loglevel
+        "pipeline": {                                  # list of modules
             "type": "array",
-            "items": {                                # module
-                "type": "object",
-                "properties": {
-                    "name":     { "type": "string" }, # module name
-                    "loglevel": { "type": "string" }, # module loglevel
-                    # other module properties are defined by module
-                },
-                "required": [ "name" ],
-            }
+            "items": SentryModule.minimal_cfg_schema() # module
         }
     },
-    "additionalProperties": { "not": {} },
+    "additionalProperties": False
 }
 
 
