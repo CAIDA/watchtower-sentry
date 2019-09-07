@@ -45,11 +45,11 @@ class Datasource(SentryModule.SentryModule):
                     if self.consumable:
                         data = self.incoming
                         self.incoming = None
-                    elif self.done == True:
-                        logger.debug("Datasource.run(): end-of-stream")
+                    elif isinstance(self.done, str):
+                        logger.debug("Datasource.run(): %s", self.done)
                         break
                     else: # if self.done:
-                        logger.debug("Datasource.run(): error in reader")
+                        logger.debug("Datasource.run(): end-of-stream")
                         break
                     self.consumable = False
                     logger.debug("cond_consumable.wait DONE (%d items)",
