@@ -80,7 +80,6 @@ def schema_validate(instance, schema, name):
     try:
         jsonschema.validate(instance=instance, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
-      if True:
         msg = e.message
         # Some messages begin with a potentially very long dump of the
         # value of a json instance.  We strip the value, since we're going
@@ -93,19 +92,6 @@ def schema_validate(instance, schema, name):
         #raise UserError(type(e).__name__ + ' in ' + filename + ' at ' +
         raise UserError(type(e).__name__ + ' at ' +
             name + path + ': ' + msg)
-      elif False:
-        raise UserError(type(e).__name__ + ': ' + str(e))
-      elif False:
-        raise UserError(type(e).__name__ + ': ' + str(e.message))
-      else:
-        raise UserError(type(e).__name__ + ': ' +
-            "\nmessage:" + str(e.message) +
-            "\nschema:" + str(e.schema) +
-            "\nschema_path:" + str(e.schema_path) +
-            "\npath:" + str(e.path) +
-            "\nabsolute_path:" + str(e.absolute_path) +
-            "\ninstance:" + str(e.instance)
-            )
 
 
 # Convert a DBATS glob to a regex.
