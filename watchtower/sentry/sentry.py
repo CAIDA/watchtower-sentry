@@ -67,7 +67,7 @@ class Sentry:
             # load the module
             pymod = importlib.import_module(modname)
             # get the module's class
-            modprefix, classname = modname.rsplit(".", 1)
+            classname = modname.rsplit(".", 1)[1]
             pyclass = getattr(pymod, classname)
             # construct an instance of the class
             modrun = self.last_mod.run if self.last_mod else None
