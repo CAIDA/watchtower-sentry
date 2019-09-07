@@ -26,6 +26,9 @@ class Datasource(SentryModule.SentryModule):
         self.cond_producable = threading.Condition(lock)
         self.cond_consumable = threading.Condition(lock)
 
+    def run_reader(self):
+        raise NotImplementedError() # abstract method
+
     # Consume data produced by the reader thread, and yield it as a generator
     def run(self):
         logger.debug("Datasource.run()")
