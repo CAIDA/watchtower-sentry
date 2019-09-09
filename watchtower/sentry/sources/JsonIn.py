@@ -1,14 +1,14 @@
 import logging
 import json
+import fileinput
 import SentryModule
 
 logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "file": {"type": "string"},
-    },
-    "required": ["file"]
+        "file": {"type": "string"},  # omitted or "-" means stdin
+    }
 }
 
 class JsonIn(SentryModule.SentryModule):
@@ -16,11 +16,11 @@ class JsonIn(SentryModule.SentryModule):
     def __init__(self, config, gen):
         logger.debug("JsonIn.__init__")
         super().__init__(config, add_cfg_schema, logger, gen, isSource=True)
-        self.filename = config['file']
+        self.filenames = [config['file']] if 'file' in config else []
 
     def run(self):
         logger.debug("JsonIn.run()")
-        with open(self.filename) as f:
+        with fileinput.input(files=self.filenames) as f:
             for line in f:
                 key, value, t = json.loads(line)
                 key = bytes(key, 'ascii')
