@@ -9,18 +9,21 @@ class ToSigned(SentryModule.SentryModule):
         super().__init__(config, None, logger, gen)
 
     @staticmethod
-    def unsignedToSigned(number, bitlength):
-        if number is None:
-            return None
+    def unsignedToSignedFactory(bitlength):
         negativeBits = (-1 << (bitlength - 1))
-        if number & negativeBits:    # if lowest negative bit is on
-            number |= negativeBits   # turn them all on (i.e. sign extension)
-        return number
+        def f(number):
+            if number is None:
+                return None
+            if number & negativeBits:    # if lowest negative bit is on
+                number |= negativeBits   # turn them all on (sign extension)
+            return number
+        return f
 
     def run(self):
         logger.debug("ToSigned.run()")
+        u_to_s_64 = self.unsignedToSignedFactory(64)
         for entry in self.gen():
             logger.debug("TS: %s", str(entry))
             key, value, t = entry
-            value = self.unsignedToSigned(value, 64)
+            value = u_to_s_64(value)
             yield (key, value, t)
