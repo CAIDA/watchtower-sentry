@@ -19,14 +19,31 @@ class Datasource(SentryModule.SentryModule):
         self.consumable = False
         # The reader thread produces data by reading it from its source and
         # appending it to self.incoming.
-        self.reader = threading.Thread(target=self.run_reader,
+        self.reader = threading.Thread(target=self.reader_thread,
             daemon=True, # program need not join() this thread to exit
             name="\x1b[31mDS.reader")
         lock = threading.Lock()
         self.cond_producable = threading.Condition(lock)
         self.cond_consumable = threading.Condition(lock)
 
-    def run_reader(self):
+    def reader_thread(self):
+        try:
+            self.reader_body()
+            if not self.done:
+                with self.cond_consumable:
+                    logger.debug("cond_consumable.notify (done=True)")
+                    self.done = True
+                    self.cond_consumable.notify()
+        except:
+            e = sys.exc_info()[1]
+            logger.critical("%s:\n%s", type(e).__name__, traceback.format_exc())
+            with self.cond_consumable:
+                logger.debug("cond_consumable.notify (exception)")
+                self.done = "exception in %s reader thread" % self.modname
+                self.cond_consumable.notify()
+
+
+    def reader_body(self):
         raise NotImplementedError() # abstract method
 
     # Consume data produced by the reader thread, and yield it as a generator

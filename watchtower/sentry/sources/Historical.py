@@ -1,6 +1,4 @@
-import sys
 import logging
-import traceback
 import requests
 import SentryModule
 from sources._Datasource import Datasource
@@ -85,20 +83,8 @@ class Historical(Datasource):
             self.consumable = True
             self.cond_consumable.notify()
 
-    def run_reader(self):
-        try:
-            logger.debug("historic.run_reader()")
-            while not self.done and self.make_next_request():
-                self.handle_response()
-            logger.debug("historic done")
-            with self.cond_consumable:
-                logger.debug("cond_consumable.notify (done=True)")
-                self.done = True
-                self.cond_consumable.notify()
-        except:
-            e = sys.exc_info()[1]
-            logger.critical("%s:\n%s", type(e).__name__, traceback.format_exc())
-            with self.cond_consumable:
-                logger.debug("cond_consumable.notify (exception)")
-                self.done = "exception in historical reader"
-                self.cond_consumable.notify()
+    def reader_body(self):
+        logger.debug("historic.run_reader()")
+        while not self.done and self.make_next_request():
+            self.handle_response()
+        logger.debug("historic done")
