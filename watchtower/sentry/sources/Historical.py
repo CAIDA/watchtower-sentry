@@ -11,7 +11,7 @@ add_cfg_schema = {
         "starttime":     {"type": "string"},
         "endtime":       {"type": "string"},
         "url":           {"type": "string"},
-        "batchduration": {"type": "number"},
+        "batchduration": {"type": "integer", "exclusiveMinimum": 0},
         "ignorenull":    {"type": "boolean"},
         "queryparams":   {"type": "object"},
     },

@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 add_cfg_schema = {
     "properties": {
         "expression":  {"type": "string"},
-        "groupsize":   {"type": "number"},
-        "timeout":     {"type": "number"},
+        "groupsize":   {"type": "integer", "exclusiveMinimum": 0},
+        "timeout":     {"type": "integer", "exclusiveMinimum": 0},
         "droppartial": {"type": "boolean"},
     },
     "required": ["expression", "timeout"]
