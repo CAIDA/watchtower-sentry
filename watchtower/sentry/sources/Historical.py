@@ -85,6 +85,10 @@ class Historical(Datasource):
 
     def reader_body(self):
         logger.debug("historic.run_reader()")
-        while not self.done and self.make_next_request():
-            self.handle_response()
+        try:
+            while not self.done and self.make_next_request():
+                self.handle_response()
+        except requests.ConnectionError as e:
+            # strip excess information about guts of requests module
+            raise ConnectionError(str(e)) from None
         logger.debug("historic done")

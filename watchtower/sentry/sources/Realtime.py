@@ -58,9 +58,11 @@ class Realtime(Datasource):
             logger.debug("tsk_reader_poll")
             msg = self.tsk_reader.poll(10000)
             if msg is None:
+                logger.debug("TSK msg: None")
                 break
             if not msg.error():
                 # wait for self.incoming to be empty
+                logger.debug("TSK msg: non-error")
                 with self.cond_producable:
                     logger.debug("cond_producable check")
                     while not self.producable:
@@ -79,16 +81,18 @@ class Realtime(Datasource):
                     self.cond_consumable.notify()
             elif msg.error().code() == \
                     confluent_kafka.KafkaError._PARTITION_EOF:
+                logger.debug("TSK msg: PARTIION_EOF")
                 # no new messages, wait a bit and then force a flush
                 eof_since_data += 1
                 if eof_since_data >= 10:
                     break
             else:
-                logging.error("Unhandled Kafka error, shutting down")
-                logging.error(msg.error())
+                logger.error("Unhandled Kafka error, shutting down")
+                logger.error(msg.error())
                 with self.cond_consumable:
                     logger.debug("cond_consumable.notify (error)")
-                    self.done = "error in realtime reader"
+                    self.reader_exc = RuntimeError("kafka: %s" % msg.error())
+                    self.done = True
                     self.cond_consumable.notify()
                 break
         logger.debug("realtime done")
