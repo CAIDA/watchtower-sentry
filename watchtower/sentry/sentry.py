@@ -7,14 +7,10 @@ import logging.handlers
 import traceback
 import argparse
 import importlib
+import yaml
 import SentryModule
 
 exitstatus = 0
-
-try:
-    import yaml
-except ImportError:
-    yaml = None
 
 COMMENT_RE = re.compile(r'//\s+.*$', re.M)
 
