@@ -52,11 +52,14 @@ class SentryModule:
                 elif key == 'required':
                     cfg_schema['required'] += value
                 elif key in cfg_schema:
-                    raise RuntimeError('%s attempted to modify %s attribute of '
-                        'cfg_schema' % (self.modname, key))
+                    raise RuntimeError('%s attempted to modify "%s" attribute '
+                        'of cfg_schema' % (self.modname, key))
                 else:
                     cfg_schema[key] = value
-        schema_validate(config, cfg_schema, 'module "' + self.modname + '" ')
+        context = config['_cfg_context']
+        del config['_cfg_context']
+        schema_validate(config, cfg_schema,
+            context + ' (module "' + self.modname + '")')
 
 
 
@@ -81,17 +84,10 @@ def schema_validate(instance, schema, name):
         jsonschema.validate(instance=instance, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
         msg = e.message
-        # Some messages begin with a potentially very long dump of the
-        # value of a json instance.  We strip the value, since we're going
-        # to print the path of that instance.
-#        instval = repr(e.instance)
-#        if msg.startswith(instval) and len(instval) > 20:
-#            msg = msg[len(instval):]
         path = ''.join([('[%d]' % i) if isinstance(i, int) \
             else ('.%s' % str(i)) for i in e.absolute_path])
-        #raise UserError(type(e).__name__ + ' in ' + filename + ' at ' +
-        raise UserError(type(e).__name__ + ' at ' +
-            name + path + ': ' + msg)
+        raise UserError('%s in %s: %s: %s' %
+            (type(e).__name__, name, path[1:], msg))
 
 
 # Convert a DBATS glob to a regex.

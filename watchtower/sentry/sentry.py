@@ -55,7 +55,7 @@ class Sentry:
             logging.getLogger().setLevel(self.config['loglevel'])
 
         self.last_mod = None
-        for modconfig in self.config['pipeline']:
+        for i, modconfig in enumerate(self.config['pipeline']):
             if self.last_mod and self.last_mod.isSink:
                 raise SentryModule.UserError('Module %s is a sink; it must be '
                     'last in pipeline' % self.last_mod.modname)
@@ -67,6 +67,8 @@ class Sentry:
             pyclass = getattr(pymod, classname)
             # construct an instance of the class
             modrun = self.last_mod.run if self.last_mod else None
+            # _cfg_context is a hack to provide info for error messages
+            modconfig['_cfg_context'] = "%s pipeline[%d]" % (configname, i)
             mod = pyclass(modconfig, modrun)
             if (not modrun) != mod.isSource:
                 sign = '' if mod.isSource else ' not'
@@ -89,7 +91,7 @@ class Sentry:
             raise SentryModule.UserError('Invalid config file %s\n%s' %
                 (filename, str(e))) from None
 
-        SentryModule.schema_validate(self.config, cfg_schema, "root")
+        SentryModule.schema_validate(self.config, cfg_schema, filename)
 
     def run(self):
         logger.debug("sentry.run()")
