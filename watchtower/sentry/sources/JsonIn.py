@@ -11,11 +11,11 @@ add_cfg_schema = {
     }
 }
 
-class JsonIn(SentryModule.SentryModule):
+class JsonIn(SentryModule.Source):
 
     def __init__(self, config, gen):
         logger.debug("JsonIn.__init__")
-        super().__init__(config, add_cfg_schema, logger, gen, isSource=True)
+        super().__init__(config, logger, gen)
         self.filenames = [config['file']] if 'file' in config else []
 
     def run(self):

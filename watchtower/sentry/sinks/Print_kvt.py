@@ -4,10 +4,10 @@ import SentryModule
 logger = logging.getLogger(__name__)
 
 
-class Print_kvt(SentryModule.SentryModule):
+class Print_kvt(SentryModule.Sink):
     def __init__(self, config, gen):
         logger.debug("Print_kvt.__init__")
-        super().__init__(config, None, logger, gen, isSink=True)
+        super().__init__(config, logger, gen)
 
     def run(self):
         logger.debug("Print_kvt.run()")

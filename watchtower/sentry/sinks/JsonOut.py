@@ -11,10 +11,10 @@ add_cfg_schema = {
     },
 }
 
-class JsonOut(SentryModule.SentryModule):
+class JsonOut(SentryModule.Sink):
     def __init__(self, config, gen):
         logger.debug("JsonOut.__init__")
-        super().__init__(config, add_cfg_schema, logger, gen, isSink=True)
+        super().__init__(config, logger, gen)
         self.filename = config.get('file', '-')
 
     def run(self):

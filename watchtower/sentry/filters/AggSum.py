@@ -26,7 +26,7 @@ class AggSum(SentryModule.SentryModule):
 
     def __init__(self, config, gen):
         logger.debug("AggSum.__init__")
-        super().__init__(config, add_cfg_schema, logger, gen)
+        super().__init__(config, logger, gen)
         self.expression = config['expression']
         self.ascii_expression = bytes(self.expression, 'ascii')
         self.timeout = config['timeout']

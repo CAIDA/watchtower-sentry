@@ -21,7 +21,7 @@ add_cfg_schema = {
 class Keyfilter(SentryModule.SentryModule):
     def __init__(self, config, gen):
         logger.debug("Keyfilter.__init__")
-        super().__init__(config, add_cfg_schema, logger, gen)
+        super().__init__(config, logger, gen)
         self.expression = config['expression']
         regex = SentryModule.glob_to_regex(self.expression)
         logger.debug("expression: %s", self.expression)

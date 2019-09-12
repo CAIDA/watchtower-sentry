@@ -3,9 +3,8 @@ Base class for Watchtower Sentry modules.
 
 Derived classes can implement a source, a filter, or a sink module.
 Derived classes must implement an __init__(self, config, gen) method that
-calls super().__init__(config, add_cfg_schema, logger, gen);
-sources and sinks must supply an additional parameter isSource=True or
-isSink=True.
+calls super().__init__(config, logger, gen).
+Sources and sinks must subclass SentryModule.Source or SentryModule.Sink.
 Sources and filters must implement run(self) as a python generator function
 that yields (key, value, time) tuples.
 Filters and sinks must implement run(self) as function that reads (key, value,
@@ -17,16 +16,17 @@ import time
 import jsonschema
 
 
-def minimal_cfg_schema():
+def base_cfg_schema():
     return {
+        "title": "base module schema",
         "type": "object",
         "properties": {
             "module":   {"type": "string"}, # module name
             "loglevel": {"type": "string"}, # module loglevel
-            # subclass can add more properties
+            # subclass can add more properties in add_cfg_schema
         },
-        "required": ["module"], # subclass can add more required properties
-        # subclass can add more attributes
+        "required": ["module"], # subclass can add more in add_cfg_schema
+        # subclass can add more attributes in add_cfg_schema
     }
 
 
@@ -35,33 +35,19 @@ class UserError(RuntimeError):
 
 
 class SentryModule:
-    def __init__(self, config, add_cfg_schema, logger, gen,
-            isSource=False, isSink=False):
+    def __init__(self, config, logger, gen):
         if 'loglevel' in config:
             logger.setLevel(config['loglevel'])
         self.gen = gen
-        self.isSource = isSource
-        self.isSink = isSink
         self.modname = config['module']
-        cfg_schema = minimal_cfg_schema()
-        cfg_schema["additionalProperties"] = False
-        if add_cfg_schema:
-            for key, value in add_cfg_schema.items():
-                if key == 'properties':
-                    cfg_schema['properties'].update(value)
-                elif key == 'required':
-                    cfg_schema['required'] += value
-                elif key in cfg_schema:
-                    raise RuntimeError('%s attempted to modify "%s" attribute '
-                        'of cfg_schema' % (self.modname, key))
-                else:
-                    cfg_schema[key] = value
-        context = config['_cfg_context']
-        del config['_cfg_context']
-        schema_validate(config, cfg_schema,
-            context + ' (module "' + self.modname + '")')
 
+class Source(SentryModule):
+    def __init__(self, config, logger, gen):
+        super().__init__(config, logger, gen)
 
+class Sink(SentryModule):
+    def __init__(self, config, logger, gen):
+        super().__init__(config, logger, gen)
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a
 # unix timestamp
@@ -77,17 +63,18 @@ def strtimegm(s):
 
 
 # @staticmethod
-def schema_validate(instance, schema, name):
-    # "jsonschema" actually validates the loaded data structure, not the
-    # raw text, so works whether the text was yaml or json.
-    try:
-        jsonschema.validate(instance=instance, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
-        msg = e.message
-        path = ''.join([('[%d]' % i) if isinstance(i, int) \
-            else ('.%s' % str(i)) for i in e.absolute_path])
-        raise UserError('%s in %s: %s: %s' %
-            (type(e).__name__, name, path[1:], msg))
+def schema_validate(instance, schema, name, logger):
+    # jsonschema validates the data structure, not the source it was loaded
+    # from, so works whether the source was yaml or json or whatever.
+    jsonschema.Draft7Validator.check_schema(schema)
+    v = jsonschema.Draft7Validator(schema)
+    if not v.is_valid(instance):
+        logger.error("Errors found in %s:" % name)
+        for e in v.iter_errors(instance):
+            path = ''.join([('[%d]' % i) if isinstance(i, int) \
+                else ('.%s' % str(i)) for i in e.absolute_path])
+            logger.error('  %s: %s' % (path[1:], e.message))
+        raise UserError('invalid config file %s' % name)
 
 
 # Convert a DBATS glob to a regex.

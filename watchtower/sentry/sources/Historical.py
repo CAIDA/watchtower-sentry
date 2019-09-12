@@ -22,7 +22,7 @@ class Historical(Datasource):
 
     def __init__(self, config, gen):
         logger.debug("Historical.__init__")
-        super().__init__(config, add_cfg_schema, logger, gen)
+        super().__init__(config, logger, gen)
         self.loop = None
         self.client = None
         self.expression = config['expression']
