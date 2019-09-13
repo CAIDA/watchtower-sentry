@@ -190,6 +190,9 @@ class Median(SentryModule.SentryModule):
                     data.values = sorted([v for v, t in data.q])
                     logger.debug("sorted: %s", repr(data.values))
                     data.inpaint_start = None
+                    # Recalculate prediction using restored raw data
+                    predicted = _median(data.values)
+                    ratio = newval/predicted
             elif data.inpaint_start:
                 # We were inpainting, but new value is not extreme.
                 # Leave old inpainted values in history and forget buffered
@@ -222,11 +225,6 @@ class Median(SentryModule.SentryModule):
 
             data.q.append((newval, t))
 
-            # Now that we've inserted the new value, and potentially restored
-            # some raw values that were previously inpainted, calculate the
-            # result for the new value.
-            result = newval / _median(data.values)
-
             logger.debug("values: %s", repr(data.values))
 
-            yield (key, result, t)
+            yield (key, ratio, t)
