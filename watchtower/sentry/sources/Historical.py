@@ -1,3 +1,22 @@
+"""Source that reads historic (k,v,t) tuples from the IODA API.
+
+Configuration parameters ('*' indicates required parameter):
+    expression*: (string) A DBATS-style glob pattern that input keys must
+        match.
+    starttime*: (string) Fetch data at or after this time.
+        Format: 'YYYY-mm-dd [HH:MM[:SS]]'.
+    endtime*: (string) Fetch data before this time.
+        Format: 'YYYY-mm-dd [HH:MM[:SS]]'.
+    url*: (string) IODA HTTP API URL
+    batchduration*: (integer) How much data (in seconds) should be retrieved
+        with each call to the API.
+    ignorenull: (boolean, default false) If true, null values will be skipped.
+        If false, null values will be treated as 0.
+    queryparams: (object) Dictionary of extra parameters to pass to the API.
+
+Output:  (key, value, time)
+"""
+
 import logging
 import requests
 import SentryModule

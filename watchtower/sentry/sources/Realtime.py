@@ -1,3 +1,18 @@
+"""Source that reads (k,v,t) tuples from a live TSK (Time Series Kafka) service.
+
+Configuration parameters ('*' indicates required parameter):
+    expression*: (string) A DBATS-style glob pattern that input keys must
+        match.
+    brokers*: (string) Comma-separated list of kafka brokers.
+    consumergroup*: (string) Kafka consumer group.
+    topicprefix*: (string) Kafka topic prefix.
+    channelname*: (string) Kafka channel name.
+
+Output:  (key, value, time)
+   Output will include some amount (perhaps several days worth) of buffered
+   data prior to the near-realtime data.
+"""
+
 import logging
 import re
 from pytimeseries.tsk.proxy import TskReader

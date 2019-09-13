@@ -1,3 +1,13 @@
+"""Sink that writes (k,v,t) tuples to a JSON file.
+
+Configuration parameters ('*' indicates required parameter):
+    file: (string) Name of output file.  If "-" or omitted, write to stdout.
+
+Input:  (key, value, time)
+
+Sink result:  tuples written to specified file.
+"""
+
 import sys
 import logging
 import json
@@ -7,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "file": {"type": "string"} # omitted or '-' means stdout
+        "file": {"type": "string"}
     },
 }
 

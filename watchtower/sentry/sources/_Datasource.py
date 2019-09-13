@@ -1,3 +1,5 @@
+"""Provides base class and common methods for threaded source modules."""
+
 import sys
 import logging
 import threading

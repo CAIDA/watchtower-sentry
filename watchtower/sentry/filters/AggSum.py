@@ -1,3 +1,28 @@
+"""Filter that sums values across a group of keys.
+
+Configuration parameters ('*' indicates required parameter):
+    expression*: (string) A DBATS-style glob pattern that input keys must
+        match.  Aggregation groups are identified by the substring(s) that
+        match(es) parenthesized subexpression(s).
+    groupsize: (integer) Expected number of inputs per group.  Once a group
+        has this many values, the output can be generated, even if timeout has
+        not been reached.
+    timeout*: (integer) Max time (in seconds) to wait for inputs to arrive for
+        a group before generating output for the group (unless {droppartial}
+        is set).
+    droppartial: (boolean) If this is set, then groups with fewer than
+        {groupsize} datapoints after {timeout} seconds should be dropped
+        rather than generating output.
+
+Input:  (key, value, time)
+
+Output:  (key, value, time)
+    key is generated from {expression}, with parenthesized groups replaced
+        with the matching part of the input key.
+    value is the sum of values for all inputs with the same time and whose key
+        maps to the same output key.
+    time is the same as input time.
+"""
 import logging
 from collections import OrderedDict
 import re

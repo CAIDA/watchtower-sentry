@@ -1,3 +1,15 @@
+"""Filter that converts 64-bit unsigned values to signed.
+
+Configuration parameters: none
+
+Input:  (key, value, time)
+
+Output:  (key, value, time)
+    key is the same as input key.
+    value is the input value converted from unsigned to signed.
+    time is the same as input time.
+"""
+
 import logging
 import SentryModule
 

@@ -1,3 +1,11 @@
+"""Source that reads (k,v,t) tuples from a JSON file.
+
+Configuration parameters ('*' indicates required parameter):
+    file: (string) Name of input file.  If "-" or omitted, read from stdin.
+
+Output:  (key, value, time)
+"""
+
 import logging
 import json
 import fileinput

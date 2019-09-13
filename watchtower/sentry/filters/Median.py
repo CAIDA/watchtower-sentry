@@ -17,8 +17,8 @@ Input:  (key, value, time)
 
 Output:  (key, value, time)
     key is the same as input key.
-    value is the median of all values for the same key where (old.time >
-        new.time - history).
+    value is the ratio of the input value to the median of all values for the
+        same key where (old.time > new.time - history).
     time is the same as input time.
 """
 
@@ -91,7 +91,7 @@ class Median(SentryModule.SentryModule):
         self.history_duration = config['history']
         if self.history_duration <= self.warmup:
             raise SentryModule.UserError('module %s: history (%d) must be '
-                'greater than ' 'warmup (%d)' %
+                'greater than warmup (%d)' %
                 (self.modname, self.history_duration, self.warmup))
         if 'inpainting' in config:
             inp = config['inpainting']

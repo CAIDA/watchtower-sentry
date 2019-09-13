@@ -1,8 +1,11 @@
 """
-Filter that passes on entries with a matching key.
+Filter that passes through only entries with a matching key.
 
 Configuration parameters:
     expression: (string) a DBATS-style glob pattern to compare against keys.
+
+Input:  (key, value, time)
+Output:  tuples that pass the filter are unmodified; others are dropped.
 """
 
 import logging
