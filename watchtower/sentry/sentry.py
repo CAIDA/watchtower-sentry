@@ -85,7 +85,7 @@ class Sentry:
             # Merge module-specific configuration schema with the base
             # module schema, and add the result to the main cfg_schema.
             mod_schema = SM.base_cfg_schema()
-            mod_schema['title'] = modname
+            mod_schema['properties']['module'] = {'const': modname}
             mod_schema['additionalProperties'] = False
             try:
                 add_cfg_schema = getattr(pymod, 'add_cfg_schema')
@@ -103,6 +103,9 @@ class Sentry:
                     else:
                         mod_schema[key] = value
             cfg_schema['properties']['pipeline']['items'].append(mod_schema)
+            # Checking the mod_schema by itself gives much more readable error
+            # messages than checking the full schema.
+            SM.validator().check_schema(mod_schema)
 
         # Validate config against the full schema we just built.
         SM.schema_validate(self.config, cfg_schema, cfg_name, logger)

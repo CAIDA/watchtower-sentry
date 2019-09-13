@@ -18,7 +18,6 @@ import jsonschema
 
 def base_cfg_schema():
     return {
-        "title": "base module schema",
         "type": "object",
         "properties": {
             "module":   {"type": "string"}, # module name
@@ -51,7 +50,6 @@ class Sink(SentryModule):
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a
 # unix timestamp
-# @staticmethod
 def strtimegm(s):
     for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
         try:
@@ -62,12 +60,14 @@ def strtimegm(s):
         % s)
 
 
-# @staticmethod
+def validator():
+    return jsonschema.Draft7Validator
+
 def schema_validate(instance, schema, name, logger):
     # jsonschema validates the data structure, not the source it was loaded
     # from, so works whether the source was yaml or json or whatever.
-    jsonschema.Draft7Validator.check_schema(schema)
-    v = jsonschema.Draft7Validator(schema)
+    validator().check_schema(schema)
+    v = validator()(schema)
     if not v.is_valid(instance):
         logger.error("Errors found in %s:" % name)
         for e in v.iter_errors(instance):
@@ -93,7 +93,6 @@ def schema_validate(instance, schema, name, logger):
 #       strings
 #   Any other character matches itself.
 #   Any special character can have its special meaning removed by preceeding it with '\'.
-# @staticmethod
 def glob_to_regex(glob):
     re_meta = '.^$*+?{}[]|()'
     glob_meta = '*?{}[]()'
