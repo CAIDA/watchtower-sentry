@@ -1,10 +1,25 @@
-"""Filter that calculates the median.
+"""Filter that calculates the moving median over time.
 
-Configuration parameters:
-    history: (number) Number of seconds of data over which to calculate.
-    warmup: (number) Minimum number of seconds of data to collect before
+Configuration parameters ('*' indicates required parameter):
+    history*: (integer) Number of seconds of data over which to calculate.
+    warmup*: (integer) Minimum number of seconds of data to collect before
         generating output.
-    inpainting: (object) Not yet implemented.
+    inpainting:
+        min: (number <1.0) inpaint if (value/median) falls below this value
+        max: (number >1.0) inpaint if (value/median) rises above this value
+        maxduration*: (integer) maximum time (in seconds) to inpaint.  If this
+            time is exceeded, the previously inpainted values are replaced
+            with their original values for purposes of calculating the median.
+            I.e., the values previously considered extreme will now be
+            considered the new normal.
+
+Input:  (key, value, time)
+
+Output:  (key, value, time)
+    key is the same as input key.
+    value is the median of all values for the same key where (old.time >
+        new.time - history).
+    time is the same as input time.
 """
 
 import logging
@@ -128,34 +143,35 @@ class Median(SentryModule.SentryModule):
                     key, oldest[0], oldest[1])
                 data.values.remove(oldest[0])
 
-            # Calculate predicted value of metric based on data in the window
-            histval = _median(data.values)
-            result = value/histval if histval else None
-            logger.debug("histval=%s, value=%s, result=%s",
-                repr(histval), repr(value), repr(result))
+            # Calculate predicted value based on data in the window (not
+            # including the new value)
+            predicted = _median(data.values)
+            ratio = value/predicted if predicted else None
+            logger.debug("predicted=%s, value=%s, ratio=%s",
+                repr(predicted), repr(value), repr(ratio))
 
             newval = value
 
-            # Is result extreme?
-            if result is not None and (
-                    (self.inpaint_min and result < self.inpaint_min) or
-                    (self.inpaint_max and result > self.inpaint_max)):
-                if (self.inpaint_min and result < self.inpaint_min):
-                    logger.debug("result %f < min %f", result, self.inpaint_min)
-                if (self.inpaint_max and result > self.inpaint_max):
-                    logger.debug("result %f > max %f", result, self.inpaint_max)
+            if ratio is not None and (
+                    (self.inpaint_min and ratio < self.inpaint_min) or
+                    (self.inpaint_max and ratio > self.inpaint_max)):
+                # New value is extreme
+                if (self.inpaint_min and ratio < self.inpaint_min):
+                    logger.debug("ratio %f < min %f", ratio, self.inpaint_min)
+                if (self.inpaint_max and ratio > self.inpaint_max):
+                    logger.debug("ratio %f > max %f", ratio, self.inpaint_max)
                 if not data.inpaint_start:
                     # Start inpainting
                     logger.debug("### extreme value: start inpainting")
                     data.inpaint_start = t
                     data.raw_q = deque()
                     data.raw_q.append((value, t))
-                    newval = histval
+                    newval = predicted
                 elif data.inpaint_start > t - self.inpaint_maxduration:
                     # Continue inpainting
                     logger.debug("### extreme value: continue inpainting")
                     data.raw_q.append((value, t))
-                    newval = histval
+                    newval = predicted
                 else:
                     # Undo previous inpainting (extreme is the new normal)
                     logger.debug("### extreme value: new normal")
@@ -174,13 +190,11 @@ class Median(SentryModule.SentryModule):
                     data.values = sorted([v for v, t in data.q])
                     logger.debug("sorted: %s", repr(data.values))
                     data.inpaint_start = None
-                    # Redo calculations using restored raw data
-                    histval = _median(data.values)
-                    result = value/histval
             elif data.inpaint_start:
                 # We were inpainting, but new value is not extreme.
-                # Leave old inpainted values in history.
-                logger.debug("### normal value: cancel inpainting")
+                # Leave old inpainted values in history and forget buffered
+                # raw values.
+                logger.debug("### return to normal: cancel inpainting")
                 data.inpaint_start = None
                 data.raw_q = None
 
@@ -190,7 +204,7 @@ class Median(SentryModule.SentryModule):
                 bisect.insort(data.values, newval)
             else:
                 # Window is full.  We want to remove the oldest value and
-                # insert the new value.
+                # insert the new value (which may be raw or inpainted).
                 oldest = data.q.popleft()
 
                 if debug:
@@ -202,11 +216,16 @@ class Median(SentryModule.SentryModule):
 
                 if debug and data.values != correct:
                     raise RuntimeError("bad sort for %s at %d\n"
-                        "old = %d, new = %d\ncorrect: %s\nresult:  %s" %
+                        "old = %d, new = %d\nexpect: %s\ngot:     %s" %
                         (key, t, oldest[0], newval,
                         repr(correct), repr(data.values)))
 
             data.q.append((newval, t))
+
+            # Now that we've inserted the new value, and potentially restored
+            # some raw values that were previously inpainted, calculate the
+            # result for the new value.
+            result = newval / _median(data.values)
 
             logger.debug("values: %s", repr(data.values))
 
