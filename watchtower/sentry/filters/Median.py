@@ -62,7 +62,7 @@ def _sortedlist_add_remove(slist, additem, rmitem):
     # expect, due to greater overhead.  And there are no trees in the
     # python standard library.  Consider
     # http://www.grantjenks.com/docs/sortedcontainers/.)
-    ## logger.debug("slist:  %s", repr(slist))
+    ## logger.debug("slist:  %r", slist)
     if rmitem < additem:
         left = bisect.bisect_right(slist, rmitem)
         right = bisect.bisect_left(slist, additem, lo=left)
@@ -133,7 +133,7 @@ class Median(SentryModule.SentryModule):
                 # Warmup is done; initialize sorted list of values (not
                 # including the new value)
                 data.values = sorted([v for v, t in data.q])
-                logger.debug("sorted: %s", repr(data.values))
+                logger.debug("sorted: %r", data.values)
 
             # If window is overfull, remove old items.  This can happen when
             # there's a time gap in new arrivals.
@@ -147,8 +147,8 @@ class Median(SentryModule.SentryModule):
             # including the new value)
             predicted = _median(data.values)
             ratio = value/predicted if predicted else None
-            logger.debug("predicted=%s, value=%s, ratio=%s",
-                repr(predicted), repr(value), repr(ratio))
+            logger.debug("predicted=%r, value=%r, ratio=%r",
+                predicted, value, ratio)
 
             newval = value
 
@@ -178,9 +178,9 @@ class Median(SentryModule.SentryModule):
                     popped = 0
                     while data.q and data.q[-1][1] >= data.inpaint_start:
                         vt = data.q.pop()
-                        logger.debug("popped: %s", repr(vt))
+                        logger.debug("popped: %r", vt)
                         popped += 1
-                    logger.debug("raw_q: %s", repr(data.raw_q))
+                    logger.debug("raw_q: %r", data.raw_q)
                     if popped != len(data.raw_q):
                         logger.error("inpainted items (%s) != raw items (%d) "
                             "at (%s, %d), inpaint_start=%d",
@@ -188,7 +188,7 @@ class Median(SentryModule.SentryModule):
                     data.q.extend(data.raw_q)
                     data.raw_q = None
                     data.values = sorted([v for v, t in data.q])
-                    logger.debug("sorted: %s", repr(data.values))
+                    logger.debug("sorted: %r", data.values)
                     data.inpaint_start = None
                     # Recalculate prediction using restored raw data
                     predicted = _median(data.values)
@@ -219,12 +219,12 @@ class Median(SentryModule.SentryModule):
 
                 if debug and data.values != correct:
                     raise RuntimeError("bad sort for %s at %d\n"
-                        "old = %d, new = %d\nexpect: %s\ngot:     %s" %
+                        "old = %d, new = %d\nexpect: %r\ngot:     %r" %
                         (key, t, oldest[0], newval,
-                        repr(correct), repr(data.values)))
+                        correct, data.values))
 
             data.q.append((newval, t))
 
-            logger.debug("values: %s", repr(data.values))
+            logger.debug("values: %r", data.values)
 
             yield (key, ratio, t)
