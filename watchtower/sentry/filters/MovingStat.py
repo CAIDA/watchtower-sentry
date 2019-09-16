@@ -1,4 +1,4 @@
-"""Filter that calculates the moving median over time.
+"""Filter that calculates relative distance from a moving statistic
 
 Configuration parameters ('*' indicates required parameter):
     type*: array of a statistic type name and optional integer parameters
@@ -93,7 +93,7 @@ def _sortedlist_add_remove(slist, additem, rmitem):
         #logger.debug("add=%d,rm=%d: no-op", additem, rmitem)
 
 
-class Median(SentryModule.SentryModule):
+class MovingStat(SentryModule.SentryModule):
     def __init__(self, config, gen):
         logger.debug("MovingStatistic.__init__")
         super().__init__(config, logger, gen)
@@ -123,11 +123,11 @@ class Median(SentryModule.SentryModule):
                 % (self.modname, stattype, n_params, len(config['type']) - 1))
 
         stattype_params = {
-            "mean":     [Median.Mean, None, None],
-            "min":      [Median.Quantile, 0, 1],
-            "max":      [Median.Quantile, 1, 1],
-            "median":   [Median.Quantile, 1, 2],
-            "quantile": [Median.Quantile, *config['type'][1:]],
+            "mean":     [MovingStat.Mean, None, None],
+            "min":      [MovingStat.Quantile, 0, 1],
+            "max":      [MovingStat.Quantile, 1, 1],
+            "median":   [MovingStat.Quantile, 1, 2],
+            "quantile": [MovingStat.Quantile, *config['type'][1:]],
         }
         self.statclass, self.k, self.q = stattype_params[stattype]
         if self.q and self.k > self.q:
@@ -186,7 +186,6 @@ class Median(SentryModule.SentryModule):
 
         def is_initialized(self):
             return self.sum is not None
-            logger.debug("sum: %r", data.sum)
 
         def initialize(self):
             self.sum = sum([v for v, t in self.vtq])
