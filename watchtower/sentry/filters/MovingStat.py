@@ -11,11 +11,11 @@ Configuration parameters ('*' indicates required parameter):
     warmup*: (integer) Minimum number of seconds of data to collect before
         generating output.
     inpainting:
-        min: (number <1.0) inpaint if (value/median) falls below this value
-        max: (number >1.0) inpaint if (value/median) rises above this value
+        min: (number <1.0) inpaint if (value/stat) falls below this value
+        max: (number >1.0) inpaint if (value/stat) rises above this value
         maxduration*: (integer) maximum time (in seconds) to inpaint.  If this
             time is exceeded, the previously inpainted values are replaced
-            with their original values for purposes of calculating the median.
+            with their original values for purposes of calculating the stat.
             I.e., the values previously considered extreme will now be
             considered the new normal.
 
@@ -23,8 +23,8 @@ Input:  (key, value, time)
 
 Output:  (key, value, time)
     key is the same as input key.
-    value is the ratio of the input value to the median of all values for the
-        same key where (old.time > new.time - history).
+    value is the ratio of the input value to the statistic for all values for
+        the same key where (old.time > new.time - history).
     time is the same as input time.
 """
 

@@ -41,12 +41,10 @@ class SentryModule:
         self.modname = config['module']
 
 class Source(SentryModule):
-    def __init__(self, config, logger, gen):
-        super().__init__(config, logger, gen)
+    pass
 
 class Sink(SentryModule):
-    def __init__(self, config, logger, gen):
-        super().__init__(config, logger, gen)
+    pass
 
 # Convert a time string in 'YYYY-mm-dd [HH:MM[:SS]]' format (in UTC) to a
 # unix timestamp
