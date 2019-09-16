@@ -52,7 +52,7 @@ def strtimegm(s):
     for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
         try:
             return calendar.timegm(time.strptime(s, fmt))
-        except:
+        except ValueError:
             continue
     raise ValueError("Invalid date '%s'; expected 'YYYY-mm-dd [HH:MM[:SS]]'"
         % s)
@@ -90,7 +90,8 @@ def schema_validate(instance, schema, name, logger):
 #   {...} matches any one string of characters in the comma-separated list of
 #       strings
 #   Any other character matches itself.
-#   Any special character can have its special meaning removed by preceeding it with '\'.
+#   Any special character can have its special meaning removed by preceeding
+#       it with '\'.
 def glob_to_regex(glob):
     re_meta = '.^$*+?{}[]|()'
     glob_meta = '*?{}[]()'

@@ -40,7 +40,7 @@ add_cfg_schema = {
         "type": {
             "type": "array",
             # first item is stattype name, other are parameters
-            "items": [ {"type": "string"} ],
+            "items": [{"type": "string"}],
             "additionalItems": {"type": "integer"},
             "minItems": 1
         },
