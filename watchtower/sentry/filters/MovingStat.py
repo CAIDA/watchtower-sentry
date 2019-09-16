@@ -153,6 +153,10 @@ class MovingStat(SentryModule.SentryModule):
         def is_initialized(self):
             return self.values is not None
 
+        def reset(self):
+            self.values = None
+            logger.debug("reset")
+
         def initialize(self):
             self.values = sorted([v for v, t in self.vtq])
             logger.debug("sorted: %r", self.values)
@@ -187,18 +191,26 @@ class MovingStat(SentryModule.SentryModule):
         def is_initialized(self):
             return self.sum is not None
 
+        def reset(self):
+            self.sum = None
+            logger.debug("reset")
+
         def initialize(self):
             self.sum = sum([v for v, t in self.vtq])
+            logger.debug("init: %r / %r", self.sum, len(self.vtq))
 
         def insert_remove(self, ins_val, rm_val):
             self.sum -= rm_val
             self.sum += ins_val
+            logger.debug("mean: %r / %r", self.sum, len(self.vtq))
 
         def remove(self, val):
             self.sum -= val
+            logger.debug("mean: %r / %r", self.sum, len(self.vtq))
 
         def insert(self, val):
             self.sum += val
+            logger.debug("mean: %r / %r", self.sum, len(self.vtq))
 
         def prediction(self):
             return self.sum / len(self.vtq)
@@ -265,21 +277,24 @@ class MovingStat(SentryModule.SentryModule):
                     newval = predicted
                     ratio = newval/predicted
                 else:
-                    # Undo previous inpainting (extreme is the new normal)
+                    # Extreme is the new normal.  Discard old normal and
+                    # inpainted values, and rebuild history using raw values
+                    # that had been considered extreme.
                     logger.debug("### extreme value: new normal")
-                    popped = 0
-                    while data.vtq and data.vtq[-1][1] >= data.inpaint_start:
-                        vt = data.vtq.pop()
-                        logger.debug("popped: %r", vt)
-                        popped += 1
-                    logger.debug("raw_vtq: %r", data.raw_vtq)
-                    if popped != len(data.raw_vtq):
-                        logger.error("inpainted items (%s) != raw items (%d) "
-                            "at (%s, %d), inpaint_start=%d",
-                            popped, len(data.raw_vtq), key, t,
-                            data.inpaint_start)
-                    data.vtq.extend(data.raw_vtq)
+
+                    n_raw = len(data.raw_vtq)
+                    if data.vtq[-n_raw][1] != data.inpaint_start:
+                        logger.error("vtq[-%d][1] (%d) != inpaint_start (%d) "
+                            "at (%s, %d)",
+                            n_raw, data.vtq[-n_raw], data.inpaint_start, key, t)
+
+                    data.vtq = data.raw_vtq
                     data.raw_vtq = None
+                    if data.vtq[0][1] > t - self.warmup:
+                        # Not enough data
+                        data.reset()
+                        data.vtq.append((value, t))
+                        continue
                     data.initialize()
                     data.inpaint_start = None
                     # Recalculate prediction using restored raw data
@@ -293,6 +308,8 @@ class MovingStat(SentryModule.SentryModule):
                 data.inpaint_start = None
                 data.raw_vtq = None
 
+            data.vtq.append((newval, t))
+
             if data.vtq[0][1] > window_start:
                 # Window is not full.  Insert newval into the sorted list.
                 logger.debug("insert %d", newval)
@@ -302,9 +319,5 @@ class MovingStat(SentryModule.SentryModule):
                 # insert the new value (which may be raw or inpainted).
                 oldest = data.vtq.popleft()
                 data.insert_remove(newval, oldest[0])
-
-            data.vtq.append((newval, t))
-
-            #logger.debug("values: %r", data.values)
 
             yield (key, ratio, t)
