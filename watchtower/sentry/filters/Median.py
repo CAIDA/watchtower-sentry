@@ -1,6 +1,12 @@
 """Filter that calculates the moving median over time.
 
 Configuration parameters ('*' indicates required parameter):
+    type*: array of a statistic type name and optional integer parameters
+        ['mean']             mean of values
+        ['quantile', k, q]   k'th q-quantile of values
+        ['median']           middle value; equivalent to ['quantile', 1, 2]
+        ['min']              minimum value; equivalent to ['quantile', 0, 1]
+        ['max']              maximum value; equivalent to ['quantile', 1, 1]
     history*: (integer) Number of seconds of data over which to calculate.
     warmup*: (integer) Minimum number of seconds of data to collect before
         generating output.
@@ -28,10 +34,16 @@ from collections import deque
 import SentryModule
 
 logger = logging.getLogger(__name__)
-debug = True
 
 add_cfg_schema = {
     "properties": {
+        "type": {
+            "type": "array",
+            # first item is stattype name, other are parameters
+            "items": [ {"type": "string"} ],
+            "additionalItems": {"type": "integer"},
+            "minItems": 1
+        },
         "history":       {"type": "integer", "exclusiveMinimum": 0},
         "warmup":        {"type": "integer", "exclusiveMinimum": 0},
         "inpainting":    {
@@ -45,7 +57,7 @@ add_cfg_schema = {
             "required": ["maxduration"],
         },
     },
-    "required": ["history", "warmup"]
+    "required": ["type", "history", "warmup"],
 }
 
 
@@ -66,33 +78,33 @@ def _sortedlist_add_remove(slist, additem, rmitem):
     if rmitem < additem:
         left = bisect.bisect_right(slist, rmitem)
         right = bisect.bisect_left(slist, additem, lo=left)
-        logger.debug("rm=%d,add=%d: left=%d, right=%d", rmitem, additem, left, right)
+        logger.debug("rm=%d,add=%d: left=%d, right=%d",
+            rmitem, additem, left, right)
         slist[left-1:right-1] = slist[left:right]
         slist[right-1] = additem
     elif additem < rmitem:
         left = bisect.bisect_right(slist, additem)
         right = bisect.bisect_left(slist, rmitem, lo=left)
-        logger.debug("add=%d,rm=%d: left=%d, right=%d", additem, rmitem, left, right)
+        logger.debug("add=%d,rm=%d: left=%d, right=%d",
+            additem, rmitem, left, right)
         slist[left+1:right+1] = slist[left:right]
         slist[left] = additem
     #else: # removing and inserting the same value is a no-op
         #logger.debug("add=%d,rm=%d: no-op", additem, rmitem)
 
 
-def _median(slist):
-    return slist[len(slist)//2]
-
-
 class Median(SentryModule.SentryModule):
     def __init__(self, config, gen):
-        logger.debug("Median.__init__")
+        logger.debug("MovingStatistic.__init__")
         super().__init__(config, logger, gen)
+        self.config = config
         self.warmup = config['warmup']
         self.history_duration = config['history']
         if self.history_duration <= self.warmup:
             raise SentryModule.UserError('module %s: history (%d) must be '
                 'greater than warmup (%d)' %
                 (self.modname, self.history_duration, self.warmup))
+
         if 'inpainting' in config:
             inp = config['inpainting']
             self.inpaint_maxduration = inp.get('maxduration', None)
@@ -102,50 +114,129 @@ class Median(SentryModule.SentryModule):
             self.inpaint_maxduration = None
             self.inpaint_min = None
             self.inpaint_max = None
+
+        stattype = config['type'][0]
+        n_params = 2 if stattype == "quantile" else 0
+        if len(config['type']) - 1 != n_params:
+            raise SentryModule.UserError("module %s: type %s expects %d "
+                "parameters (found %d)"
+                % (self.modname, stattype, n_params, len(config['type']) - 1))
+
+        stattype_params = {
+            "mean":     [Median.Mean, None, None],
+            "min":      [Median.Quantile, 0, 1],
+            "max":      [Median.Quantile, 1, 1],
+            "median":   [Median.Quantile, 1, 2],
+            "quantile": [Median.Quantile, *config['type'][1:]],
+        }
+        self.statclass, self.k, self.q = stattype_params[stattype]
+        if self.q and self.k > self.q:
+            raise SentryModule.UserError("module %s: %s: first "
+                "number (%d) must be <= second (%d)"
+                % (self.modname, stattype, self.k, self.q))
+
         self.data = dict()
 
-    class Data:
-        def __init__(self):
-            self.q = deque()   # list of (v,t) ordered by t (maybe inpainted)
-            self.values = None # sorted list of values
-            self.raw_q = None  # list of raw (v,t) collected while inpainting
+    class StatBase:
+        def __init__(self, ctx):
+            self.ctx = ctx
+            self.vtq = deque()  # list of (v,t) ordered by t (maybe inpainted)
+            self.raw_vtq = None # list of raw (v,t) collected while inpainting
             self.inpaint_start = None # when did inpainting start
 
+    class Quantile(StatBase):
+        def __init__(self, ctx):
+            super().__init__(ctx)
+            logger.debug("init quantile: %d/%d", self.ctx.k, self.ctx.q)
+            self.values = None # sorted list of values
+
+        def is_initialized(self):
+            return self.values is not None
+
+        def initialize(self):
+            self.values = sorted([v for v, t in self.vtq])
+            logger.debug("sorted: %r", self.values)
+
+        def insert_remove(self, ins_val, rm_val):
+            _sortedlist_add_remove(self.values, ins_val, rm_val)
+            logger.debug("values: %r", self.values)
+
+        def remove(self, val):
+            self.values.remove(val)
+
+        def insert(self, val):
+            bisect.insort(self.values, val)
+            logger.debug("values: %r", self.values)
+
+        def prediction(self):
+            # Nearest rank method: smallest value such that no more than k/q
+            # of the data is < value and at least k/q of the data is <= value
+            if self.ctx.k == 0:
+                rank = 0
+            else:
+                N = len(self.values)
+                # -(-N*k//q) is equivalent to ceil(N*k/q), but faster
+                rank = -(-N * self.ctx.k // self.ctx.q) - 1
+            return self.values[rank]
+
+    class Mean(StatBase):
+        def __init__(self, ctx):
+            super().__init__(ctx)
+            self.sum = None # sum of values
+
+        def is_initialized(self):
+            return self.sum is not None
+            logger.debug("sum: %r", data.sum)
+
+        def initialize(self):
+            self.sum = sum([v for v, t in self.vtq])
+
+        def insert_remove(self, ins_val, rm_val):
+            self.sum -= rm_val
+            self.sum += ins_val
+
+        def remove(self, val):
+            self.sum -= val
+
+        def insert(self, val):
+            self.sum += val
+
+        def prediction(self):
+            return self.sum / len(self.vtq)
+
     def run(self):
-        logger.debug("Median.run()")
+        logger.debug("MovingStatistic.run()")
         for entry in self.gen():
             logger.debug("MD: %s", str(entry))
             key, value, t = entry
 
             if key not in self.data:
-                data = Median.Data()
+                data = self.statclass(self)
                 self.data[key] = data
             else:
                 data = self.data[key]
-            if not data.q or data.q[0][1] > t - self.warmup:
+            if not data.vtq or data.vtq[0][1] > t - self.warmup:
                 # not enough points yet.  Just store the new value.
-                data.q.append((value, t))
+                data.vtq.append((value, t))
                 continue
 
             window_start = t - self.history_duration
 
-            if not data.values:
-                # Warmup is done; initialize sorted list of values (not
-                # including the new value)
-                data.values = sorted([v for v, t in data.q])
-                logger.debug("sorted: %r", data.values)
+            if not data.is_initialized():
+                # Warmup is done; initialize data (not including the new value)
+                data.initialize()
 
             # If window is overfull, remove old items.  This can happen when
             # there's a time gap in new arrivals.
-            while data.q and data.q[0][1] < window_start:
-                oldest = data.q.popleft()
+            while data.vtq and data.vtq[0][1] < window_start:
+                oldest = data.vtq.popleft()
                 logger.warning("removing extra old item (%s, %d, %d)",
                     key, oldest[0], oldest[1])
-                data.values.remove(oldest[0])
+                data.remove(oldest[0])
 
             # Calculate predicted value based on data in the window (not
             # including the new value)
-            predicted = _median(data.values)
+            predicted = data.prediction()
             ratio = value/predicted if predicted else None
             logger.debug("predicted=%r, value=%r, ratio=%r",
                 predicted, value, ratio)
@@ -164,34 +255,36 @@ class Median(SentryModule.SentryModule):
                     # Start inpainting
                     logger.debug("### extreme value: start inpainting")
                     data.inpaint_start = t
-                    data.raw_q = deque()
-                    data.raw_q.append((value, t))
+                    data.raw_vtq = deque()
+                    data.raw_vtq.append((value, t))
                     newval = predicted
+                    ratio = newval/predicted
                 elif data.inpaint_start > t - self.inpaint_maxduration:
                     # Continue inpainting
                     logger.debug("### extreme value: continue inpainting")
-                    data.raw_q.append((value, t))
+                    data.raw_vtq.append((value, t))
                     newval = predicted
+                    ratio = newval/predicted
                 else:
                     # Undo previous inpainting (extreme is the new normal)
                     logger.debug("### extreme value: new normal")
                     popped = 0
-                    while data.q and data.q[-1][1] >= data.inpaint_start:
-                        vt = data.q.pop()
+                    while data.vtq and data.vtq[-1][1] >= data.inpaint_start:
+                        vt = data.vtq.pop()
                         logger.debug("popped: %r", vt)
                         popped += 1
-                    logger.debug("raw_q: %r", data.raw_q)
-                    if popped != len(data.raw_q):
+                    logger.debug("raw_vtq: %r", data.raw_vtq)
+                    if popped != len(data.raw_vtq):
                         logger.error("inpainted items (%s) != raw items (%d) "
                             "at (%s, %d), inpaint_start=%d",
-                            popped, len(data.raw_q), key, t, data.inpaint_start)
-                    data.q.extend(data.raw_q)
-                    data.raw_q = None
-                    data.values = sorted([v for v, t in data.q])
-                    logger.debug("sorted: %r", data.values)
+                            popped, len(data.raw_vtq), key, t,
+                            data.inpaint_start)
+                    data.vtq.extend(data.raw_vtq)
+                    data.raw_vtq = None
+                    data.initialize()
                     data.inpaint_start = None
                     # Recalculate prediction using restored raw data
-                    predicted = _median(data.values)
+                    predicted = data.prediction()
                     ratio = newval/predicted
             elif data.inpaint_start:
                 # We were inpainting, but new value is not extreme.
@@ -199,32 +292,20 @@ class Median(SentryModule.SentryModule):
                 # raw values.
                 logger.debug("### return to normal: cancel inpainting")
                 data.inpaint_start = None
-                data.raw_q = None
+                data.raw_vtq = None
 
-            if data.q[0][1] > window_start:
+            if data.vtq[0][1] > window_start:
                 # Window is not full.  Insert newval into the sorted list.
                 logger.debug("insert %d", newval)
-                bisect.insort(data.values, newval)
+                data.insert(newval)
             else:
                 # Window is full.  We want to remove the oldest value and
                 # insert the new value (which may be raw or inpainted).
-                oldest = data.q.popleft()
+                oldest = data.vtq.popleft()
+                data.insert_remove(newval, oldest[0])
 
-                if debug:
-                    correct = list(data.values)
-                    correct.remove(oldest[0])
-                    bisect.insort(correct, newval)
+            data.vtq.append((newval, t))
 
-                _sortedlist_add_remove(data.values, newval, oldest[0])
-
-                if debug and data.values != correct:
-                    raise RuntimeError("bad sort for %s at %d\n"
-                        "old = %d, new = %d\nexpect: %r\ngot:     %r" %
-                        (key, t, oldest[0], newval,
-                        correct, data.values))
-
-            data.q.append((newval, t))
-
-            logger.debug("values: %r", data.values)
+            #logger.debug("values: %r", data.values)
 
             yield (key, ratio, t)
