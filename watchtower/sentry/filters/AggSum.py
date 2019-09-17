@@ -65,7 +65,9 @@ class AggSum(SentryModule.SentryModule):
         # value: _Agginfo of [firsttime, count, vsum]
         self.aggdict = OrderedDict()
 
-        self.complete_keys = dict()
+        # old_keys stores the timestamp of the most recent complete or
+        # expired data for each group
+        self.old_keys = dict()
 
         regex = SentryModule.glob_to_regex(self.expression)
         logger.debug("expression: %s", self.expression)
@@ -77,14 +79,13 @@ class AggSum(SentryModule.SentryModule):
     def groupkey(self, groupid):
         groupkey = self.ascii_expression
         for part in groupid:
-            logger.debug('part: %s', str(part))
-            groupkey = re.sub(rb"\([^)]*\)", part, groupkey)
+            groupkey = re.sub(rb"\([^)]*\)", part, groupkey, count=1)
         return groupkey
 
     def run(self):
         logger.debug("AggSum.run()")
         for entry in self.gen():
-            logger.debug("AG: %s", str(entry))
+            logger.debug("AG: %s", entry)
             key, value, t = entry
             match = self.expression_re.match(key)
             if not match:
@@ -92,46 +93,47 @@ class AggSum(SentryModule.SentryModule):
             groupid = match.groups()
             aggkey = (groupid, t)
 
-            if aggkey in self.complete_keys:
-                logger.error("unexpected data for complete aggregate (%s, %d)",
-                    self.groupkey(groupid), t)
-                continue
-
             now = time.time()
 
-            if aggkey not in self.aggdict:
+            if aggkey in self.aggdict:
+                agginfo = self.aggdict[aggkey]
+            elif groupid in self.old_keys and t < self.old_keys[groupid]:
+                logger.error("unexpected data for old aggregate (%r, %d) "
+                    "from %s", groupid, t, key)
+                continue
+            else:
                 agginfo = AggSum._Agginfo(firsttime=now, count=0, vsum=0)
                 self.aggdict[aggkey] = agginfo
-            else:
-                agginfo = self.aggdict[aggkey]
+
             agginfo.count += 1
             if value is not None:
                 agginfo.vsum += value
 
-            logger.debug("k=%s, v=%s, t=%d; count=%d, vsum=%s",
-                str(groupid), str(value), t, agginfo.count, agginfo.vsum)
+            logger.debug("k=%r, v=%r, t=%d; count=%d, vsum=%s",
+                groupid, value, t, agginfo.count, agginfo.vsum)
 
             if self.groupsize and agginfo.count == self.groupsize:
                 groupkey = self.groupkey(groupid)
-                logger.debug("reached groupsize for %s after %ds",
-                    str(aggkey), now - agginfo.firsttime)
+                logger.debug("reached groupsize for %r after %ds",
+                    aggkey, now - agginfo.firsttime)
                 yield (groupkey, agginfo.vsum, t)
-                self.complete_keys[groupkey] = True
+                if groupid not in self.old_keys or t < self.old_keys[groupid]:
+                    self.old_keys[groupid] = t
                 del self.aggdict[aggkey]
 
             expiry_time = now - self.timeout
             while self.aggdict:
-                first_aggkey = next(iter(self.aggdict))
-                if self.aggdict[first_aggkey].firsttime > expiry_time:
+                aggkey, agginfo = next(iter(self.aggdict.items()), None)
+                if agginfo.firsttime > expiry_time:
                     break
-                aggkey, agginfo = self.aggdict.popitem(False)
-                groupkey = self.groupkey(aggkey[0])
-                logger.debug("reached timeout for %s after %d entries",
-                    str(aggkey), agginfo.count)
+                self.aggdict.popitem(False)
+                groupid, t = aggkey
+                groupkey = self.groupkey(groupid)
+                logger.debug("reached timeout for %r after %d entries",
+                    aggkey, agginfo.count)
                 if not self.droppartial:
-                    yield (groupkey, agginfo.vsum, aggkey[1])
-                self.complete_keys[groupkey] = True
-
-            # TODO: prune very old entries from complete_keys
+                    yield (groupkey, agginfo.vsum, t)
+                if groupid not in self.old_keys or t > self.old_keys[groupid]:
+                    self.old_keys[groupid] = t
 
         logger.debug("AggSum.run() done")
