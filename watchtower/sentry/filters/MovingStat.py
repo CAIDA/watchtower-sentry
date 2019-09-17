@@ -110,10 +110,12 @@ class MovingStat(SentryModule.SentryModule):
             self.inpaint_maxduration = inp.get('maxduration', None)
             self.inpaint_min = inp.get('min', None)
             self.inpaint_max = inp.get('max', None)
+            self.should_inpaint = self.ratio_is_extreme
         else:
             self.inpaint_maxduration = None
             self.inpaint_min = None
             self.inpaint_max = None
+            self.should_inpaint = lambda ratio: False
 
         stattype = config['type'][0]
         n_params = 2 if stattype == "quantile" else 0
@@ -215,6 +217,18 @@ class MovingStat(SentryModule.SentryModule):
         def prediction(self):
             return self.sum / len(self.vtq)
 
+
+    def ratio_is_extreme(self, ratio):
+        if ratio is None:
+            return False
+        if (self.inpaint_min and ratio < self.inpaint_min):
+            logger.debug("ratio %f < min %f", ratio, self.inpaint_min)
+            return True
+        if (self.inpaint_max and ratio > self.inpaint_max):
+            logger.debug("ratio %f > max %f", ratio, self.inpaint_max)
+            return True
+        return False
+
     def run(self):
         logger.debug("MovingStatistic.run()")
         for entry in self.gen():
@@ -254,14 +268,7 @@ class MovingStat(SentryModule.SentryModule):
 
             newval = value
 
-            if ratio is not None and (
-                    (self.inpaint_min and ratio < self.inpaint_min) or
-                    (self.inpaint_max and ratio > self.inpaint_max)):
-                # New value is extreme
-                if (self.inpaint_min and ratio < self.inpaint_min):
-                    logger.debug("ratio %f < min %f", ratio, self.inpaint_min)
-                if (self.inpaint_max and ratio > self.inpaint_max):
-                    logger.debug("ratio %f > max %f", ratio, self.inpaint_max)
+            if self.should_inpaint(ratio):
                 if not data.inpaint_start:
                     # Start inpainting
                     logger.debug("### extreme value: start inpainting")
@@ -279,7 +286,7 @@ class MovingStat(SentryModule.SentryModule):
                 else:
                     # Extreme is the new normal.  Discard old normal and
                     # inpainted values, and rebuild history using raw values
-                    # that had been considered extreme.
+                    # that had previously been considered extreme.
                     logger.debug("### extreme value: new normal")
 
                     n_raw = len(data.raw_vtq)
