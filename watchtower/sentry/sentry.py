@@ -172,8 +172,9 @@ if __name__ == '__main__':
     try:
         if cmdline_options.debug_glob:
             print(SM.glob_to_regex(cmdline_options.debug_glob))
-            sys.exit(0)
-        exitstatus = main(cmdline_options)
+            exitstatus = 0
+        else:
+            exitstatus = main(cmdline_options)
         # print("timestr: %d" % strtimegm(sys.argv[1]))
     except SM.UserError as e:
         logger.critical(str(e))
