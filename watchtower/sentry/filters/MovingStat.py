@@ -147,7 +147,6 @@ class MovingStat(SentryModule.SentryModule):
             self.ctx = ctx
             self.vtq = deque()  # list of (v,t) ordered by t (maybe inpainted)
             self.raw_vtq = None # list of raw (v,t) collected while inpainting
-            self.inpaint_start = None # when did inpainting start
 
     class Quantile(StatBase):
         def __init__(self, ctx):
@@ -271,15 +270,15 @@ class MovingStat(SentryModule.SentryModule):
 
             newval = value
 
+            inpaint_started = data.raw_vtq[0][1] if data.raw_vtq else None
             if self.should_inpaint(ratio):
-                if not data.inpaint_start:
+                if not inpaint_started:
                     # Start inpainting
                     logger.debug("### extreme value: start inpainting")
-                    data.inpaint_start = t
                     data.raw_vtq = deque()
                     data.raw_vtq.append((value, t))
                     newval = predicted
-                elif data.inpaint_start > t - self.inpaint_maxduration:
+                elif inpaint_started > t - self.inpaint_maxduration:
                     # Continue inpainting
                     logger.debug("### extreme value: continue inpainting")
                     data.raw_vtq.append((value, t))
@@ -289,11 +288,6 @@ class MovingStat(SentryModule.SentryModule):
                     # inpainted values, and rebuild history using raw values
                     # that had previously been considered extreme.
                     logger.debug("### extreme value: new normal")
-                    n_raw = len(data.raw_vtq)
-                    if data.vtq[-n_raw][1] != data.inpaint_start:
-                        logger.error("vtq[-%d][1] (%d) != inpaint_start (%d) "
-                            "at (%s, %d)", n_raw, data.vtq[-n_raw][1],
-                            data.inpaint_start, key, t)
                     data.vtq = data.raw_vtq
                     data.raw_vtq = None
                     if data.vtq[0][1] > t - self.warmup:
@@ -302,16 +296,14 @@ class MovingStat(SentryModule.SentryModule):
                         data.vtq.append((value, t))
                         continue
                     data.initialize() # not including the new value
-                    data.inpaint_start = None
                     # Recalculate prediction using restored raw data
                     predicted = data.prediction()
                     ratio = newval/predicted
-            elif data.inpaint_start:
+            elif inpaint_started:
                 # We were inpainting, but new value is not extreme.
                 # Leave old inpainted values in history and forget buffered
                 # raw values.
                 logger.debug("### return to normal: cancel inpainting")
-                data.inpaint_start = None
                 data.raw_vtq = None
 
             data.vtq.append((newval, t))
@@ -321,8 +313,8 @@ class MovingStat(SentryModule.SentryModule):
                 logger.debug("insert %d", newval)
                 data.insert(newval)
             else:
-                # Window is full.  We want to remove the oldest value and
-                # insert the new value (which may be raw or inpainted).
+                # Window is full.  Remove the oldest value and insert the new
+                # value (which may be raw or inpainted).
                 oldest = data.vtq.popleft()
                 data.insert_remove(newval, oldest[0])
 
