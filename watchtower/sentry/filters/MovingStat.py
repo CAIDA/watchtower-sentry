@@ -111,6 +111,9 @@ class MovingStat(SentryModule.SentryModule):
             self.inpaint_min = inp.get('min', None)
             self.inpaint_max = inp.get('max', None)
             self.should_inpaint = self.ratio_is_extreme
+            if self.inpaint_maxduration < self.warmup:
+                logger.warning("module %s: inpainting.maxduration (%d) < "
+                    "warmup (%d), which may lead to gaps in output")
         else:
             self.inpaint_maxduration = None
             self.inpaint_min = None
@@ -276,25 +279,21 @@ class MovingStat(SentryModule.SentryModule):
                     data.raw_vtq = deque()
                     data.raw_vtq.append((value, t))
                     newval = predicted
-                    ratio = newval/predicted
                 elif data.inpaint_start > t - self.inpaint_maxduration:
                     # Continue inpainting
                     logger.debug("### extreme value: continue inpainting")
                     data.raw_vtq.append((value, t))
                     newval = predicted
-                    ratio = newval/predicted
                 else:
                     # Extreme is the new normal.  Discard old normal and
                     # inpainted values, and rebuild history using raw values
                     # that had previously been considered extreme.
                     logger.debug("### extreme value: new normal")
-
                     n_raw = len(data.raw_vtq)
                     if data.vtq[-n_raw][1] != data.inpaint_start:
                         logger.error("vtq[-%d][1] (%d) != inpaint_start (%d) "
-                            "at (%s, %d)",
-                            n_raw, data.vtq[-n_raw], data.inpaint_start, key, t)
-
+                            "at (%s, %d)", n_raw, data.vtq[-n_raw][1],
+                            data.inpaint_start, key, t)
                     data.vtq = data.raw_vtq
                     data.raw_vtq = None
                     if data.vtq[0][1] > t - self.warmup:
@@ -302,7 +301,7 @@ class MovingStat(SentryModule.SentryModule):
                         data.reset()
                         data.vtq.append((value, t))
                         continue
-                    data.initialize()
+                    data.initialize() # not including the new value
                     data.inpaint_start = None
                     # Recalculate prediction using restored raw data
                     predicted = data.prediction()
