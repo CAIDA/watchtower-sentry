@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class Datasource(SentryModule.Source):
-    def __init__(self, config, modlogger, gen):
+    def __init__(self, config, modlogger, gen, ctx):
         logger.debug("Datasource.__init__")
         super().__init__(config, modlogger, gen)
         self.done = False
@@ -50,7 +50,7 @@ class Datasource(SentryModule.Source):
 
     # Consume data produced by the reader thread, and yield it.
     # May throw exceptions, including those raised in the reader thread.
-    def run(self):
+    def run(self, ctx):
         logger.debug("Datasource.run()")
         self.reader.start()
         while True:

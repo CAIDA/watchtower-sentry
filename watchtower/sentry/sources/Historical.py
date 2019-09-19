@@ -39,7 +39,7 @@ add_cfg_schema = {
 
 class Historical(Datasource):
 
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("Historical.__init__")
         super().__init__(config, logger, gen)
         self.loop = None
@@ -52,6 +52,7 @@ class Historical(Datasource):
         self.end_batch = self.start_time
         self.url = config['url']
         self.request = None
+        ctx['expression'] = self.expression # for AlertKafka
 
     def make_next_request(self):
         start_batch = self.end_batch

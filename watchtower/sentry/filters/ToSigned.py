@@ -16,7 +16,7 @@ import SentryModule
 logger = logging.getLogger(__name__)
 
 class ToSigned(SentryModule.SentryModule):
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("ToSigned.__init__")
         super().__init__(config, logger, gen)
 
@@ -31,10 +31,10 @@ class ToSigned(SentryModule.SentryModule):
             return number
         return f
 
-    def run(self):
+    def run(self, ctx):
         logger.debug("ToSigned.run()")
         u_to_s_64 = self.unsignedToSignedFactory(64)
-        for entry in self.gen():
+        for entry in self.gen(ctx):
             logger.debug("TS: %s", str(entry))
             key, value, t = entry
             value = u_to_s_64(value)

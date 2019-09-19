@@ -21,12 +21,13 @@ add_cfg_schema = {
 
 class JsonIn(SentryModule.Source):
 
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("JsonIn.__init__")
         super().__init__(config, logger, gen)
         self.filenames = [config['file']] if 'file' in config else []
+        ctx['expression'] = __name__ # for AlertKafka
 
-    def run(self):
+    def run(self, ctx):
         logger.debug("JsonIn.run()")
         with fileinput.input(files=self.filenames) as f:
             for line in f:

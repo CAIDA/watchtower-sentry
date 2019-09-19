@@ -36,7 +36,7 @@ add_cfg_schema = {
 
 class Realtime(Datasource):
 
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("Realtime.__init__")
         super().__init__(config, logger, gen)
         self.expression = config['expression']
@@ -53,6 +53,7 @@ class Realtime(Datasource):
         logger.debug("expression: %s", self.expression)
         logger.debug("regex:      %s", regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
+        ctx['expression'] = self.expression # for AlertKafka
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
         if self.msgbuf is None or self.msgbuf != msgbuf:

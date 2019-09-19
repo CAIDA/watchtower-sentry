@@ -49,7 +49,7 @@ class AggSum(SentryModule.SentryModule):
             self.count = count
             self.vsum = vsum
 
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("AggSum.__init__")
         super().__init__(config, logger, gen)
         self.expression = config['expression']
@@ -82,9 +82,9 @@ class AggSum(SentryModule.SentryModule):
             groupkey = re.sub(rb"\([^)]*\)", part, groupkey, count=1)
         return groupkey
 
-    def run(self):
+    def run(self, ctx):
         logger.debug("AggSum.run()")
-        for entry in self.gen():
+        for entry in self.gen(ctx):
             logger.debug("AG: %s", entry)
             key, value, t = entry
             match = self.expression_re.match(key)

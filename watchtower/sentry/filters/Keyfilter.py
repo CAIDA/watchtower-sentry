@@ -22,7 +22,7 @@ add_cfg_schema = {
 }
 
 class Keyfilter(SentryModule.SentryModule):
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("Keyfilter.__init__")
         super().__init__(config, logger, gen)
         self.expression = config['expression']
@@ -31,9 +31,9 @@ class Keyfilter(SentryModule.SentryModule):
         logger.debug("regex:      %s", regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
-    def run(self):
+    def run(self, ctx):
         logger.debug("Keyfilter.run()")
-        for entry in self.gen():
+        for entry in self.gen(ctx):
             key, value, t = entry
             if self.expression_re.match(key):
                 yield (key, value, t)

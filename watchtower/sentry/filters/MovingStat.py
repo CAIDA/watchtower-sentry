@@ -94,7 +94,7 @@ def _sortedlist_add_remove(slist, additem, rmitem):
 
 
 class MovingStat(SentryModule.SentryModule):
-    def __init__(self, config, gen):
+    def __init__(self, config, gen, ctx):
         logger.debug("MovingStatistic.__init__")
         super().__init__(config, logger, gen)
         self.config = config
@@ -140,18 +140,20 @@ class MovingStat(SentryModule.SentryModule):
                 "number (%d) must be <= second (%d)"
                 % (self.modname, stattype, self.k, self.q))
 
+        ctx['method'] = ', '.join(config['type']) # for AlertKafka
+
         self.data = dict()
 
     class StatBase:
-        def __init__(self, ctx):
-            self.ctx = ctx
+        def __init__(self, ms_ctx):
+            self.ms_ctx = ms_ctx
             self.vtq = deque()  # list of (v,t) ordered by t (maybe inpainted)
             self.raw_vtq = None # list of raw (v,t) collected while inpainting
 
     class Quantile(StatBase):
-        def __init__(self, ctx):
-            super().__init__(ctx)
-            logger.debug("init quantile: %d/%d", self.ctx.k, self.ctx.q)
+        def __init__(self, ms_ctx):
+            super().__init__(ms_ctx)
+            logger.debug("init quantile: %d/%d", self.ms_ctx.k, self.ms_ctx.q)
             self.values = None # sorted list of values
 
         def is_initialized(self):
@@ -179,17 +181,17 @@ class MovingStat(SentryModule.SentryModule):
         def prediction(self):
             # Nearest rank method: smallest value such that no more than k/q
             # of the data is < value and at least k/q of the data is <= value
-            if self.ctx.k == 0:
+            if self.ms_ctx.k == 0:
                 rank = 0
             else:
                 N = len(self.values)
                 # -(-N*k//q) is equivalent to ceil(N*k/q), but faster
-                rank = -(-N * self.ctx.k // self.ctx.q) - 1
+                rank = -(-N * self.ms_ctx.k // self.ms_ctx.q) - 1
             return self.values[rank]
 
     class Mean(StatBase):
-        def __init__(self, ctx):
-            super().__init__(ctx)
+        def __init__(self, ms_ctx):
+            super().__init__(ms_ctx)
             self.sum = None # sum of values
 
         def is_initialized(self):
@@ -231,9 +233,9 @@ class MovingStat(SentryModule.SentryModule):
             return True
         return False
 
-    def run(self):
+    def run(self, ctx):
         logger.debug("MovingStatistic.run()")
-        for entry in self.gen():
+        for entry in self.gen(ctx):
             logger.debug("MD: %s", str(entry))
             key, value, t = entry
 

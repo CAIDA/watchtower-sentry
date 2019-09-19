@@ -55,6 +55,7 @@ class Sentry:
             logging.getLogger().setLevel(self.config['loglevel'])
 
         pipeline = []
+        self.ctx = dict() # context shared by all modules
         cfg_schema['properties']['pipeline']['items'] = []
         for i, modconfig in enumerate(self.config['pipeline']):
             modname = modconfig['module']
@@ -113,7 +114,8 @@ class Sentry:
         # Construct instances of each class and chain them together.
         self.run_last_mod = None
         for i, item in enumerate(pipeline):
-            mod = item['pyclass'](item['modconfig'], self.run_last_mod)
+            mod = item['pyclass'](item['modconfig'], self.run_last_mod,
+                self.ctx)
             self.run_last_mod = mod.run
 
 
@@ -132,7 +134,8 @@ class Sentry:
 
     def run(self):
         logger.debug("sentry.run()")
-        self.run_last_mod()
+        # TODO: maybe we should pass a frozendict version of ctx?
+        self.run_last_mod(self.ctx)
         logger.debug("sentry done")
 
 # end class Sentry
