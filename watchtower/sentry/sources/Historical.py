@@ -14,6 +14,8 @@ Configuration parameters ('*' indicates required parameter):
         If false, null values will be treated as 0.
     queryparams: (object) Dictionary of extra parameters to pass to the API.
 
+Output context variables: expression
+
 Output:  (key, value, time)
 """
 

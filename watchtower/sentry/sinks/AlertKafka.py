@@ -11,6 +11,8 @@ Configuration parameters ('*' indicates required parameter):
 
     At least one of {min} or {max} is required.
 
+Input context variables: expression*, method*
+
 Input:  (key, value, time)
 
 Sink result:  alert objects sent to kafka cluster.

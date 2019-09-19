@@ -8,6 +8,8 @@ Configuration parameters ('*' indicates required parameter):
     topicprefix*: (string) Kafka topic prefix.
     channelname*: (string) Kafka channel name.
 
+Output context variables: expression
+
 Output:  (key, value, time)
    Output will include some amount (perhaps several days worth) of buffered
    data prior to the near-realtime data.

@@ -19,6 +19,8 @@ Configuration parameters ('*' indicates required parameter):
             I.e., the values previously considered extreme will now be
             considered the new normal.
 
+Output context variables: method
+
 Input:  (key, value, time)
 
 Output:  (key, value, time)

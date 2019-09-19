@@ -3,6 +3,8 @@
 Configuration parameters ('*' indicates required parameter):
     file: (string) Name of input file.  If "-" or omitted, read from stdin.
 
+Output context variables: expression
+
 Output:  (key, value, time)
 """
 
@@ -25,7 +27,7 @@ class JsonIn(SentryModule.Source):
         logger.debug("JsonIn.__init__")
         super().__init__(config, logger, gen)
         self.filenames = [config['file']] if 'file' in config else []
-        ctx['expression'] = __name__ # for AlertKafka
+        ctx['expression'] = config.get('file', '-') # for AlertKafka
 
     def run(self, ctx):
         logger.debug("JsonIn.run()")
