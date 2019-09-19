@@ -1,4 +1,5 @@
-tornado == 4.1.0
-funcparserlib==0.3.6
-pycurl
+requests
+jsonschema
+confluent_kafka
+pytimeseries
 watchtower.alert
