@@ -71,6 +71,13 @@ class AlertKafka(SentryModule.Sink):
         for entry in self.gen():
             logger.debug("AK: %s", str(entry))
             key, value, t = entry
+
+            # Trigger any available delivery report callacks from previous
+            # produce() calls
+            self.kproducer.poll(0)
+
+            if value is None:
+                continue
             if key not in self.alert_status:
                 self.alert_status[key] = 0
             if self.min is not None and value < self.min:
@@ -100,9 +107,6 @@ class AlertKafka(SentryModule.Sink):
                     }],
                 }
 
-                # Trigger any available delivery report callacks from previous
-                # produce() calls
-                self.kproducer.poll(0)
                 # Asynchonously produce a message.  The delivery report
                 # callback will be triggered from poll() above, or flush()
                 # below, when the message has been successfully delivered or

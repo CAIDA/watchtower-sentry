@@ -241,6 +241,9 @@ class MovingStat(SentryModule.SentryModule):
             logger.debug("MD: %s", str(entry))
             key, value, t = entry
 
+            if value is None:
+                continue
+
             if key not in self.data:
                 data = self.statclass(self)
                 self.data[key] = data
@@ -302,7 +305,9 @@ class MovingStat(SentryModule.SentryModule):
                     data.initialize() # not including the new value
                     # Recalculate prediction using restored raw data
                     predicted = data.prediction()
-                    ratio = newval/predicted
+                    ratio = newval/predicted if predicted else None
+                    logger.debug("new predicted=%r, value=%r, ratio=%r",
+                        predicted, value, ratio)
             elif inpaint_started:
                 # We were inpainting, but new value is not extreme.
                 # Leave old inpainted values in history and forget buffered
