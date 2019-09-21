@@ -43,7 +43,7 @@ class Historical(Datasource):
 
     def __init__(self, config, gen, ctx):
         logger.debug("Historical.__init__")
-        super().__init__(config, logger, gen)
+        super().__init__(config, logger, gen, ctx)
         self.loop = None
         self.client = None
         self.expression = config['expression']
@@ -92,11 +92,12 @@ class Historical(Datasource):
             self.incoming = []
             self.producable = False
             logger.debug("cond_producable.wait DONE")
-        for key in result['data']['series']:
-            t = int(result['data']['series'][key]['from'])
-            step = int(result['data']['series'][key]['step'])
+        series = result['data']['series']
+        for key, record in series.items():
+            t = int(record['from'])
+            step = int(record['step'])
             ascii_key = bytes(key, 'ascii')
-            for value in result['data']['series'][key]['values']:
+            for value in record['values']:
                 self.incoming.append((ascii_key, value, t))
                 t += step
         # tell computation thread that self.incoming is now full
