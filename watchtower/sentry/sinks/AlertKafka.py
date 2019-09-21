@@ -3,7 +3,6 @@
 Configuration parameters ('*' indicates required parameter):
     fqid*: (string) Unique identifier for this data source.
     name*: (string) Human-readable name for this data source.
-    method*: (string) Human-readable description of the sentry pipeline.
     min: (number <1.0) Generate alert if value falls below this value.
     max: (number >1.0) Generate alert if value rises above this value.
     brokers*: (string) Comma-separated list of kafka brokers.
@@ -29,13 +28,12 @@ add_cfg_schema = {
     "properties": {
         "fqid":        {"type": "string"},
         "name":        {"type": "string"},
-        "method":      {"type": "string"},
         "min":         {"type": "number", "exclusiveMaximum": 1.0},
         "max":         {"type": "number", "exclusiveMinimum": 1.0},
         "brokers":     {"type": "string"},
         "topicprefix": {"type": "string"},
     },
-    "required": ["fqid", "name", "method", "brokers", "topicprefix"],
+    "required": ["fqid", "name", "brokers", "topicprefix"],
     "oneOf": [{"required": ["min"]}, {"required": ["max"]}]
 }
 
@@ -45,7 +43,6 @@ class AlertKafka(SentryModule.Sink):
         super().__init__(config, logger, gen)
         self.fqid = config['fqid']
         self.name = config['name']
-        self.method = config['method']
         self.brokers = config['brokers']
         self.topicprefix = config['topicprefix']
         self.min = config.get('min', None)
