@@ -87,7 +87,7 @@ pipeline:
   # Example:
   #   input keys: x.US.p1, x.US.p2, x.CA.p1, x.CA.p2
   #   expression: x.(*).*
-  #   output keys: x.US.* x.CA.*
+  #   output keys: x.US.*, x.CA.*
   expression: 'active.ping-slash24.geo.netacuity.(*.*).probers.team-*.caida-sdsc.*.up_slash24_cnt'
 
   # (optional) Expected number of inputs per group.  Once a group has this
@@ -100,7 +100,7 @@ pipeline:
   timeout: 600
 
   # (optional, default False) If this is true, then groups with fewer than
-  # {groupsize} datapoints after {timeout} seconds should be dropped rather
+  # `groupsize` datapoints after `timeout` seconds should be dropped rather
   # than generating output.
   droppartial: false
 
@@ -143,7 +143,7 @@ pipeline:
     # can detect, but since level shifts and outages are identical
     # as far as our data goes, I don't think there is a better
     # solution.
-    maxduration: 3600
+    maxduration: 604800
 
 
 # End with a sink module.  A real config file can have only one sink;
