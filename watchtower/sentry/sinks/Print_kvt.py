@@ -9,8 +9,8 @@ class Print_kvt(SentryModule.Sink):
         logger.debug("Print_kvt.__init__")
         super().__init__(config, logger, gen)
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("Print_kvt.run()")
-        for entry in self.gen(ctx):
+        for entry in self.gen():
             print(str(entry))
         logger.debug("Print_kvt.run() done")

@@ -29,7 +29,7 @@ class JsonIn(SentryModule.Source):
         self.filenames = [config['file']] if 'file' in config else []
         ctx['expression'] = config.get('file', '-') # for AlertKafka
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("JsonIn.run()")
         with fileinput.input(files=self.filenames) as f:
             for line in f:

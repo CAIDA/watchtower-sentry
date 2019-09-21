@@ -31,10 +31,10 @@ class ToSigned(SentryModule.SentryModule):
             return number
         return f
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("ToSigned.run()")
         u_to_s_64 = self.unsignedToSignedFactory(64)
-        for entry in self.gen(ctx):
+        for entry in self.gen():
             logger.debug("TS: %s", str(entry))
             key, value, t = entry
             value = u_to_s_64(value)

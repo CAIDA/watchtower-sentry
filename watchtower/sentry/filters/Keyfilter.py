@@ -31,9 +31,9 @@ class Keyfilter(SentryModule.SentryModule):
         logger.debug("regex:      %s", regex)
         self.expression_re = re.compile(bytes(regex, 'ascii'))
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("Keyfilter.run()")
-        for entry in self.gen(ctx):
+        for entry in self.gen():
             key, value, t = entry
             if self.expression_re.match(key):
                 yield (key, value, t)

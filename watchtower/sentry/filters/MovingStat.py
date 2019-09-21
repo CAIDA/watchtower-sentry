@@ -235,9 +235,9 @@ class MovingStat(SentryModule.SentryModule):
             return True
         return False
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("MovingStatistic.run()")
-        for entry in self.gen(ctx):
+        for entry in self.gen():
             logger.debug("MD: %s", str(entry))
             key, value, t = entry
 

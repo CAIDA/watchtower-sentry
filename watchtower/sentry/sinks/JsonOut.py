@@ -27,13 +27,13 @@ class JsonOut(SentryModule.Sink):
         super().__init__(config, logger, gen)
         self.filename = config.get('file', '-')
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("JsonOut.run()")
         f = sys.stdout
         try:
             if self.filename != '-':
                 f = open(self.filename, 'w')
-            for entry in self.gen(ctx):
+            for entry in self.gen():
                 key, value, t = entry
                 key = str(key, 'ascii')
                 json.dump((key, value, t), f, separators=(',', ':'))

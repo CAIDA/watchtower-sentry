@@ -50,7 +50,7 @@ class Datasource(SentryModule.Source):
 
     # Consume data produced by the reader thread, and yield it.
     # May throw exceptions, including those raised in the reader thread.
-    def run(self, ctx):
+    def run(self):
         logger.debug("Datasource.run()")
         self.reader.start()
         while True:

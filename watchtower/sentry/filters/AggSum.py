@@ -82,9 +82,9 @@ class AggSum(SentryModule.SentryModule):
             groupkey = re.sub(rb"\([^)]*\)", part, groupkey, count=1)
         return groupkey
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("AggSum.run()")
-        for entry in self.gen(ctx):
+        for entry in self.gen():
             logger.debug("AG: %s", entry)
             key, value, t = entry
             match = self.expression_re.match(key)

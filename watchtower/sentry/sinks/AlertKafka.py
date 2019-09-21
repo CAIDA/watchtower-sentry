@@ -59,14 +59,16 @@ class AlertKafka(SentryModule.Sink):
             'bootstrap.servers': self.brokers,
         }
         self.kproducer = confluent_kafka.Producer(kp_cfg)
-        for k in ['expression', 'method']:
-            if k not in ctx:
-                raise RuntimeError('context "%s" was not set by any previous '
-                    'module' % k)
+        try:
+            self.expression = ctx['expression']
+            self.method = ctx['method']
+        except KeyError as e:
+            raise RuntimeError('%s expects ctx[%s] to be set by a previous '
+                'module' % (self.modname, str(e)))
 
-    def run(self, ctx):
+    def run(self):
         logger.debug("AlertKafka.run()")
-        for entry in self.gen(ctx):
+        for entry in self.gen():
             logger.debug("AK: %s", str(entry))
             key, value, t = entry
             if key not in self.alert_status:
@@ -85,9 +87,9 @@ class AlertKafka(SentryModule.Sink):
                     "name": self.name,
                     "level": "critical" if alert_status != 0 else "normal",
                     "time": t,
-                    "expression": ctx['expression'],
+                    "expression": self.expression,
                     "history_expression": None,
-                    "method": ctx['method'],
+                    "method": self.method,
                     "violations": [{
                         "expression": str(key, 'ascii'),
                         "condition": self.condition_label[alert_status+1],
