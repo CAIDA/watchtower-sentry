@@ -2,13 +2,13 @@
 Base class for Watchtower Sentry modules.
 
 Derived classes can implement a source, a filter, or a sink module.
-Derived classes must implement an __init__(self, config, gen) method that
-calls super().__init__(config, logger, gen).
+Derived classes must implement an __init__(self, config, gen, ctx) method that
+calls super().__init__(config, logger, gen, ctx).
 Sources and sinks must subclass SentryModule.Source or SentryModule.Sink.
-Sources and filters must implement run(self) as a python generator function
-that yields (key, value, time) tuples.
-Filters and sinks must implement run(self) as function that reads (key, value,
-time) tuples by iterating over the gen() generator.
+Sources and filters must implement run(self, ctx) as a python generator
+function that yields (key, value, time) tuples.
+Filters and sinks must implement run(self, ctx) as function that reads
+(key, value, time) tuples by iterating over the gen() generator.
 """
 
 import calendar
