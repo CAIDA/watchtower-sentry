@@ -11,8 +11,8 @@ import yaml
 import SentryModule as SM
 
 exitstatus = 0
-
 COMMENT_RE = re.compile(r'//\s+.*$', re.M)
+logger = logging.getLogger('watchtower.sentry') # sentry logger
 
 
 cfg_schema = {
@@ -22,7 +22,8 @@ cfg_schema = {
         "loglevel": {"type": "string"},                # global loglevel
         "pipeline": {                                  # list of modules
             "type": "array",
-            "items": SM.base_cfg_schema()              # module
+            "items": SM.base_cfg_schema(),             # generic module
+            "minItems": 2,
         }
     },
     "additionalProperties": False
@@ -46,11 +47,15 @@ def main(options):
 
 class Sentry:
 
-    def __init__(self, options):
-        self.configfile = None
-        cfg_name = os.path.abspath(options.configfile)
-        if cfg_name:
-            self._load_config(cfg_name)
+    def __init__(self, options, config = None):
+        if config:
+            cfg_name = '<config data>'
+            self.config = config
+        else:
+            cfg_name = os.path.abspath(options.configfile)
+            if cfg_name:
+                self._load_config(cfg_name)
+
         if 'loglevel' in self.config:
             logging.getLogger().setLevel(self.config['loglevel'])
 
@@ -166,7 +171,6 @@ if __name__ == '__main__':
     rootlogger = logging.getLogger()
     rootlogger.addHandler(loghandler)
     rootlogger.setLevel(loglevel)
-    logger = logging.getLogger('watchtower.sentry') # sentry logger
 
     # Main body logs all exceptions
     try:
