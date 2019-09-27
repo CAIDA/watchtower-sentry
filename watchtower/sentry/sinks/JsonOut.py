@@ -2,6 +2,7 @@
 
 Configuration parameters ('*' indicates required parameter):
     file: (string) Name of output file.  If "-" or omitted, write to stdout.
+    compact: (boolean, default true)
 
 Input:  (key, value, time)
 
@@ -17,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "file": {"type": "string"}
+        "file": {"type": "string"},
+        "compact": {"type": "boolean"}
     },
 }
 
@@ -26,6 +28,8 @@ class JsonOut(SentryModule.Sink):
         logger.debug("JsonOut.__init__")
         super().__init__(config, logger, gen)
         self.filename = config.get('file', '-')
+        self.separators = (',', ':') if config.get('compact', True) \
+            else (', ', ': ')
 
     def run(self):
         logger.debug("JsonOut.run()")
@@ -36,7 +40,7 @@ class JsonOut(SentryModule.Sink):
             for entry in self.gen():
                 key, value, t = entry
                 key = str(key, 'ascii')
-                json.dump((key, value, t), f, separators=(',', ':'))
+                json.dump((key, value, t), f, separators=self.separators)
                 f.write('\n')
         finally:
             if f is not sys.stdout:
