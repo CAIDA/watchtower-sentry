@@ -32,6 +32,7 @@ add_cfg_schema = {
         "max":         {"type": "number", "exclusiveMinimum": 1.0},
         "brokers":     {"type": "string"},
         "topicprefix": {"type": "string"},
+        "disable":     {"type": "boolean"}, # for debugging
     },
     "required": ["fqid", "name", "brokers", "topicprefix"],
     "oneOf": [{"required": ["min"]}, {"required": ["max"]}]
@@ -47,6 +48,7 @@ class AlertKafka(SentryModule.Sink):
         self.topicprefix = config['topicprefix']
         self.min = config.get('min', None)
         self.max = config.get('max', None)
+        self.disable = config.get('disable', False)
         self.condition_label = [
             "< %r" % self.min,   # -1
             "normal",            # 0
@@ -112,11 +114,13 @@ class AlertKafka(SentryModule.Sink):
                 # below, when the message has been successfully delivered or
                 # failed permanently.
                 msg = json.dumps(record, separators={',',':'})
-                self.kproducer.produce(self.topic,
-                    value=bytes(msg, 'ascii'),
-                    key=key,
-                    on_delivery=self.kp_delivery_report)
-                print(json.dumps(record))
+                if self.disable:
+                    print(msg)
+                else:
+                    self.kproducer.produce(self.topic,
+                        value=bytes(msg, 'ascii'),
+                        key=key,
+                        on_delivery=self.kp_delivery_report)
 
         self.kproducer.flush()
         logger.debug("AlertKafka.run() done")
