@@ -22,7 +22,7 @@ class Datasource(SentryModule.Source):
         # appending it to self.incoming.
         self.reader = threading.Thread(target=self.reader_thread,
             daemon=True, # program need not join() this thread to exit
-            name="\x1b[31mDS.reader")
+            name="DS.reader")
         lock = threading.Lock()
         self.cond_producable = threading.Condition(lock)
         self.cond_consumable = threading.Condition(lock)

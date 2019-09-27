@@ -160,8 +160,7 @@ if __name__ == '__main__':
         '%(name)-20s '
         '%(process)d:'
         '%(threadName)-10s '
-        '%(levelname)-8s: %(message)s'
-        '\x1b[m',
+        '%(levelname)-8s: %(message)s',
         '%H:%M:%S'))
     loglevel = cmdline_options.loglevel
     rootlogger = logging.getLogger()
