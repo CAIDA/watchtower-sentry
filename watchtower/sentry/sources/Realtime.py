@@ -83,12 +83,14 @@ class Realtime(Datasource):
                 logger.debug("TSK msg: non-error")
                 with self.cond_producable:
                     logger.debug("cond_producable check")
-                    while not self.producable:
+                    while not self.producable and not self.done:
                         logger.debug("cond_producable.wait")
                         self.cond_producable.wait()
                     self.incoming = []
                     self.producable = False
                     logger.debug("cond_producable.wait DONE")
+                if self.done: # in case consumer stopped early
+                    break
                 self.tsk_reader.handle_msg(msg.value(),
                     self._msg_cb, self._kv_cb)
                 eof_since_data = 0
@@ -99,7 +101,7 @@ class Realtime(Datasource):
                     self.cond_consumable.notify()
             elif msg.error().code() == \
                     confluent_kafka.KafkaError._PARTITION_EOF:
-                logger.debug("TSK msg: PARTIION_EOF")
+                logger.debug("TSK msg: PARTITION_EOF")
                 # no new messages, wait a bit and then force a flush
                 eof_since_data += 1
                 if eof_since_data >= 10:

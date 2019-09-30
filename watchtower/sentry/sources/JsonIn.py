@@ -31,10 +31,13 @@ class JsonIn(SentryModule.Source):
 
     def run(self):
         logger.debug("JsonIn.run()")
-        with fileinput.input(files=self.filenames) as f:
-            for line in f:
-                key, value, t = json.loads(line)
-                key = bytes(key, 'ascii')
-                yield (key, value, t)
+        try:
+            with fileinput.input(files=self.filenames) as f:
+                for line in f:
+                    key, value, t = json.loads(line)
+                    key = bytes(key, 'ascii')
+                    yield (key, value, t)
+        finally:
+            logger.debug("JsonIn.run() finally")
 
         logger.debug("JsonIn.run() done")

@@ -53,36 +53,47 @@ class Datasource(SentryModule.Source):
     def run(self):
         logger.debug("Datasource.run()")
         self.reader.start()
-        while True:
-            # wait for reader thread to fill self.incoming
-            data = None
-            with self.cond_consumable:
-                logger.debug("cond_consumable check")
-                while not self.consumable and not self.done:
-                    logger.debug("cond_consumable.wait")
-                    self.cond_consumable.wait()
-                if self.consumable:
-                    data = self.incoming
-                    self.incoming = None
-                elif self.reader_exc:
-                    logger.debug("Datasource.run: exception in reader thread")
-                    raise self.reader_exc
-                else: # if self.done:
-                    logger.debug("Datasource.run: end-of-stream")
-                    break
-                self.consumable = False
-                logger.debug("cond_consumable.wait DONE (%d items)",
-                    len(data))
-            # Tell reader thread that self.incoming is ready to be refilled
-            with self.cond_producable:
-                logger.debug("cond_producable.notify")
-                self.producable = True
-                self.cond_producable.notify()
-            # Give up control to the reader so it can request the next set
-            # of data; then while it waits for the response it will return
-            # control to this thread.
-            time.sleep(0)
-            # Process the data.
-            for entry in data:
-                yield entry
-        self.reader.join()
+        try:
+            while True:
+                # wait for reader thread to fill self.incoming
+                data = None
+                with self.cond_consumable:
+                    logger.debug("cond_consumable check")
+                    while not self.consumable and not self.done:
+                        logger.debug("cond_consumable.wait")
+                        self.cond_consumable.wait()
+                    if self.consumable:
+                        data = self.incoming
+                        self.incoming = None
+                    elif self.reader_exc:
+                        logger.debug("Datasource.run: exception in reader "
+                            "thread")
+                        raise self.reader_exc
+                    else: # if self.done:
+                        logger.debug("Datasource.run: end-of-stream")
+                        break
+                    self.consumable = False
+                    logger.debug("cond_consumable.wait DONE (%d items)",
+                        len(data))
+                # Tell reader thread that self.incoming is ready to be refilled
+                with self.cond_producable:
+                    logger.debug("cond_producable.notify")
+                    self.producable = True
+                    self.cond_producable.notify()
+                # Give up control to the reader so it can request the next set
+                # of data; then while it waits for the response it will return
+                # control to this thread.
+                time.sleep(0)
+                # Process the data.
+                for entry in data:
+                    yield entry
+        finally:
+            logger.debug("_Datasource.run() finally")
+            if not self.done:
+                # notify producer that we're stopping early
+                with self.cond_producable:
+                    logger.debug("cond_producable.notify (done=True)")
+                    self.done = True
+                    self.cond_producable.notify()
+            logger.debug("joining reader thread")
+            self.reader.join()

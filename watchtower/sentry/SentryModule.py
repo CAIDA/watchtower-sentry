@@ -9,6 +9,7 @@ Sources and filters must implement run(self) as a python generator function
 that yields (key, value, time) tuples.
 Filters and sinks must implement run(self) as function that reads
 (key, value, time) tuples by iterating over the gen() generator.
+The module should do any necessary cleanup in a `finally` clause in run().
 """
 
 import calendar
