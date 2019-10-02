@@ -10,9 +10,7 @@ Input:  (key, value, time)
 Sink result:  tuples written to specified list in memory.
 """
 
-import sys
 import logging
-import json
 import SentryModule
 
 logger = logging.getLogger(__name__)

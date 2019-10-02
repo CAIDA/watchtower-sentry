@@ -127,7 +127,7 @@ class AlertKafka(SentryModule.Sink):
 
     def kp_delivery_report(self, err, msg):
         if err is not None:
-            logger.error("message delivery failed: {}".format(err))
+            logger.error("message delivery failed: %r", err)
         else:
-            logger.debug("message delivered to {} [{}]".format(
-                msg.topic(), msg.partition()))
+            logger.debug("message delivered to %r [%r]",
+                msg.topic(), msg.partition())
