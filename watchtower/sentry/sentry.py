@@ -76,8 +76,8 @@ class Sentry:
                 if not issubclass(pyclass, SM.SentryModule):
                     raise TypeError()
             except (AttributeError, TypeError) as e:
-                raise SM.UserError('pipeline[%d]: %s is not a '
-                    'SentryModule' % (i, modname))
+                raise SM.UserError('pipeline[%d]: %s is not a SentryModule' %
+                    (i, modname))
 
             for cls, loc, idx in [(SM.Source, 'first', 0),
                     (SM.Sink, 'last', len(self.config['pipeline']) - 1)]:
