@@ -48,6 +48,7 @@ add_cfg_schema = {
         },
         "history":       {"type": "integer", "exclusiveMinimum": 0},
         "warmup":        {"type": "integer", "exclusiveMinimum": 0},
+        "normalize":     {"type": "boolean"}, # for testing/debugging
         "inpainting":    {
             "type": "object",
             "properties": {
@@ -101,6 +102,7 @@ class MovingStat(SentryModule.SentryModule):
         super().__init__(config, logger, gen)
         self.config = config
         self.warmup = config['warmup']
+        self.normalize = config.get('normalize', True)
         self.history_duration = config['history']
         if self.history_duration <= self.warmup:
             raise SentryModule.UserError('module %s: history (%d) must be '
@@ -327,4 +329,4 @@ class MovingStat(SentryModule.SentryModule):
                 oldest = data.vtq.popleft()
                 data.insert_remove(newval, oldest[0])
 
-            yield (key, ratio, t)
+            yield (key, ratio if self.normalize else predicted, t)
