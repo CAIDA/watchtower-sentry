@@ -2,4 +2,3 @@ requests
 jsonschema
 confluent_kafka
 pytimeseries
-watchtower.alert
