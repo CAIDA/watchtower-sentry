@@ -73,6 +73,7 @@ target/
 bin/
 include/
 pip-selfcheck.json
+venv/
 
 # IDE crap
 sftp-config.json
