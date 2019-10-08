@@ -143,8 +143,7 @@ class Sentry:
 
 # end class Sentry
 
-
-if __name__ == '__main__':
+def main():
     default_cfg_file = 'sentry.yaml'
     default_log_level = 'INFO'
     parser = argparse.ArgumentParser(description=
@@ -191,3 +190,7 @@ if __name__ == '__main__':
 
     logger.debug('__main__ done')
     sys.exit(exitstatus)
+
+
+if __name__ == '__main__':
+    main()
