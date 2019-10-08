@@ -2,3 +2,4 @@ requests
 jsonschema
 confluent_kafka
 pytimeseries
+pyyaml
