@@ -145,13 +145,12 @@ def main(options):
 
 
 def cli():
-    default_cfg_file = 'sentry.yaml'
     default_log_level = 'INFO'
     parser = argparse.ArgumentParser(description=
         "Detect outages in IODA data and send alerts to watchtower-alert.")
     parser.add_argument("-c", "--configfile",
-        help=("name of configuration file [%s]" % default_cfg_file),
-        default=default_cfg_file)
+        help="name of configuration file",
+        required=True)
     parser.add_argument("-L", "--loglevel",
         help=("logging level [%s]" % default_log_level),
         default=default_log_level)
