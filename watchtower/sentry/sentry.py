@@ -30,21 +30,6 @@ cfg_schema = {
 }
 
 
-def main(options):
-    logger.debug("main()")
-
-#    signal.signal(signal.SIGTERM, s.stop)
-#    signal.signal(signal.SIGINT, s.stop)
-#    if hasattr(signal, 'SIGHUP'):
-#        signal.signal(signal.SIGHUP, s.reinit)
-
-    s = Sentry(options)
-
-    s.run()
-    logger.debug("main() done")
-    return 0
-
-
 class Sentry:
 
     def __init__(self, options, config = None):
@@ -143,7 +128,23 @@ class Sentry:
 
 # end class Sentry
 
-def main():
+
+def main(options):
+    logger.debug("main()")
+
+#    signal.signal(signal.SIGTERM, s.stop)
+#    signal.signal(signal.SIGINT, s.stop)
+#    if hasattr(signal, 'SIGHUP'):
+#        signal.signal(signal.SIGHUP, s.reinit)
+
+    s = Sentry(options)
+
+    s.run()
+    logger.debug("main() done")
+    return 0
+
+
+def cli():
     default_cfg_file = 'sentry.yaml'
     default_log_level = 'INFO'
     parser = argparse.ArgumentParser(description=
@@ -193,4 +194,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    cli()

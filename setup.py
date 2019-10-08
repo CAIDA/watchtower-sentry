@@ -26,6 +26,6 @@ setup(
     install_requires=install_requires,
     include_package_data=True,
     entry_points={'console_scripts': [
-        'watchtower-sentry=watchtower.sentry.sentry:main',
+        'watchtower-sentry=watchtower.sentry.sentry:cli',
     ]},
 )
