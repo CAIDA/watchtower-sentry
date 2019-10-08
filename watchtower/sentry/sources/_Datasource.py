@@ -4,7 +4,7 @@ import sys
 import logging
 import threading
 import time
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

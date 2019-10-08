@@ -33,7 +33,7 @@ Output:  (key, value, time)
 import logging
 import bisect
 from collections import deque
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

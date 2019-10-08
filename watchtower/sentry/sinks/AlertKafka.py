@@ -20,7 +20,7 @@ Sink result:  alert objects sent to kafka cluster.
 import json
 import logging
 import confluent_kafka
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

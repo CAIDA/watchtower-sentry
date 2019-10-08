@@ -21,8 +21,8 @@ Output:  (key, value, time)
 
 import logging
 import requests
-import SentryModule
-from sources._Datasource import Datasource
+from .. import SentryModule
+from ._Datasource import Datasource
 
 logger = logging.getLogger(__name__)
 

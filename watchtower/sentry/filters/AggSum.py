@@ -27,7 +27,7 @@ import logging
 from collections import OrderedDict
 import re
 import time
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

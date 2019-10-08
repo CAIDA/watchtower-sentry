@@ -10,7 +10,7 @@ Output:  tuples that pass the filter are unmodified; others are dropped.
 
 import logging
 import re
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

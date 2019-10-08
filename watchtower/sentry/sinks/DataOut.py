@@ -11,7 +11,7 @@ Sink result:  tuples written to specified list in memory.
 """
 
 import logging
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

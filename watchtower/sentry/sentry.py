@@ -8,7 +8,7 @@ import traceback
 import argparse
 import importlib
 import yaml
-import SentryModule as SM
+from . import SentryModule as SM
 
 exitstatus = 0
 COMMENT_RE = re.compile(r'//\s+.*$', re.M)

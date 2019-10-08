@@ -11,7 +11,7 @@ Output:  (key, value, time)
 import logging
 import json
 import fileinput
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 

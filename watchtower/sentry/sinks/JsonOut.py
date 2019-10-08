@@ -12,7 +12,7 @@ Sink result:  tuples written to specified file.
 import sys
 import logging
 import json
-import SentryModule
+from .. import SentryModule
 
 logger = logging.getLogger(__name__)
 
