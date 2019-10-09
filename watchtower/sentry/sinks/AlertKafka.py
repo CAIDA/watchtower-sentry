@@ -6,7 +6,7 @@ Configuration parameters ('*' indicates required parameter):
     min: (number <1.0) Generate alert if value falls below this value.
     max: (number >1.0) Generate alert if value rises above this value.
     brokers*: (string) Comma-separated list of kafka brokers.
-    topicprefix*: (string) Kafka topic prefix.
+    topic*: (string) Kafka topic prefix.
 
     At least one of {min} or {max} is required.
 
@@ -31,10 +31,10 @@ add_cfg_schema = {
         "min":         {"type": "number", "exclusiveMaximum": 1.0},
         "max":         {"type": "number", "exclusiveMinimum": 1.0},
         "brokers":     {"type": "string"},
-        "topicprefix": {"type": "string"},
+        "topic": {"type": "string"},
         "disable":     {"type": "boolean"}, # for debugging
     },
-    "required": ["fqid", "name", "brokers", "topicprefix"],
+    "required": ["fqid", "name", "brokers", "topic"],
     "oneOf": [{"required": ["min"]}, {"required": ["max"]}]
 }
 
@@ -45,7 +45,7 @@ class AlertKafka(SentryModule.Sink):
         self.fqid = config['fqid']
         self.name = config['name']
         self.brokers = config['brokers']
-        self.topicprefix = config['topicprefix']
+        self.topic = config['topic']
         self.min = config.get('min', None)
         self.max = config.get('max', None)
         self.disable = config.get('disable', False)
@@ -55,7 +55,6 @@ class AlertKafka(SentryModule.Sink):
             "> %r" % self.max    # 1
         ]
 
-        self.topic = "%s-alerts" % (self.topicprefix)
         self.alert_status = dict()
         kp_cfg = {
             'bootstrap.servers': self.brokers,
