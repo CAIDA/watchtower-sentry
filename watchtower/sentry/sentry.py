@@ -51,7 +51,8 @@ class Sentry:
             modname = modconfig['module']
             # load the module
             try:
-                pymod = importlib.import_module(modname)
+                pymod = importlib.import_module(name=(".%s" % modname),
+                                                package="watchtower.sentry")
             except ModuleNotFoundError as e:
                 raise SM.UserError('pipeline[%d]: %s' % (i, str(e)))
             # get the module's class
