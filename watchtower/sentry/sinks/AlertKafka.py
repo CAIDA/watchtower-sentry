@@ -112,7 +112,7 @@ class AlertKafka(SentryModule.Sink):
                 # callback will be triggered from poll() above, or flush()
                 # below, when the message has been successfully delivered or
                 # failed permanently.
-                msg = json.dumps(record, separators={',',':'})
+                msg = json.dumps(record, separators=(',',':'))
                 if self.disable:
                     print(msg)
                 else:
