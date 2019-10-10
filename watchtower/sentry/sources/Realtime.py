@@ -92,7 +92,6 @@ class Realtime(Datasource):
                     break
                 self.tsk_reader.handle_msg(msg.value(),
                     self._msg_cb, self._kv_cb)
-                eof_since_data = 0
                 # tell computation thread that self.incoming is now full
                 with self.cond_consumable:
                     logger.debug("cond_consumable.notify")
@@ -100,11 +99,8 @@ class Realtime(Datasource):
                     self.cond_consumable.notify()
             elif msg.error().code() == \
                     confluent_kafka.KafkaError._PARTITION_EOF:
+                # no new messages
                 logger.debug("TSK msg: PARTITION_EOF")
-                # no new messages, wait a bit and then force a flush
-                eof_since_data += 1
-                if eof_since_data >= 10:
-                    break
             else:
                 logger.error("Unhandled Kafka error, shutting down")
                 logger.error(msg.error())
