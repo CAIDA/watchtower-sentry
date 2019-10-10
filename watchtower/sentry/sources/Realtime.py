@@ -49,7 +49,6 @@ class Realtime(Datasource):
                 config['brokers'],
                 commit_offsets=False)
         self.msg_time = None
-        self.msgbuf = None
         regex = SentryModule.glob_to_regex(self.expression)
         logger.debug("expression: %s", self.expression)
         logger.debug("regex:      %s", regex)
@@ -57,12 +56,8 @@ class Realtime(Datasource):
         ctx['expression'] = self.expression # for AlertKafka
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
-        if self.msgbuf is None or self.msgbuf != msgbuf:
-            label = "new"
-        else:
-            label = "repeated"
-        logger.debug("%s msg: %d bytes at %d", label, msgbuflen, msg_time)
-        self.msgbuf = msgbuf
+        if msg_time > self.msg_time:
+            logger.info("TSK msg time %d" % msg_time)
         self.msg_time = msg_time
 
     def _kv_cb(self, key, val):
