@@ -12,6 +12,12 @@ loglevel: INFO
 # source, followed by any number of filters, and ends with a sink.  All
 # modules have a "module" attribute identifying the module, and an optional
 # "loglevel" attribute that overrides the global loglevel within the module.
+#
+# Some modules (e.g., MovingStat) emit multiple values (as a tuple nested in
+# the value field). If such a module is used, the remainder of the pipeline
+# must be comprised of modules than can handle such multi-value tuples.
+# Eventually we should upgrade all modules to handle this case, but currently
+# only the AlertKafka supports multi-value data points.
 pipeline:
 
 # Start with a source module.  A real config file can have only one source;
@@ -107,6 +113,10 @@ pipeline:
 
 # Output ratio of actual values to predicted values calculated with a moving
 # statistic.
+#
+# NB: If the includeabsolute option is enabled, this module emits a triple in
+# the "value" field of each data point which corresponds to
+# (relative, actual, predicted)
 - module: "filters.MovingStat"
 
   # How to calculate the predicted value.  This is an array, starting with the
@@ -123,6 +133,9 @@ pipeline:
 
   # Minimum number of seconds of data to collect before generating output.
   warmup: 3600
+
+  # (optional) Emit absolute values alongside relative
+  includeabsolute: true
 
   # (optional) To avoid having extreme values skew the prediction, we can
   # "inpaint": That is, instead of appending an actual extreme value to the

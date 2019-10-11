@@ -79,6 +79,13 @@ class AlertKafka(SentryModule.Sink):
 
             if value is None:
                 continue
+
+            if isinstance(value, tuple):
+                (value, actual, predicted) = value
+            else:
+                actual = None
+                predicted = None
+
             if key not in self.alert_status:
                 self.alert_status[key] = 0
             if self.min is not None and value < self.min:
@@ -101,8 +108,8 @@ class AlertKafka(SentryModule.Sink):
                     "violations": [{
                         "expression": str(key, 'ascii'),
                         "condition": self.condition_label[alert_status+1],
-                        "value": value,
-                        "history_value": None,
+                        "value": value if actual is None else actual,
+                        "history_value": predicted,  # may be None
                         "history": None,
                         "time": t,
                     }],
@@ -112,7 +119,7 @@ class AlertKafka(SentryModule.Sink):
                 # callback will be triggered from poll() above, or flush()
                 # below, when the message has been successfully delivered or
                 # failed permanently.
-                msg = json.dumps(record, separators=(',',':'))
+                msg = json.dumps(record, separators=(',', ':'))
                 if self.disable:
                     print(msg)
                 else:

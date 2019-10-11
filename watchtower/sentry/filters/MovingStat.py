@@ -10,6 +10,7 @@ Configuration parameters ('*' indicates required parameter):
     history*: (integer) Number of seconds of data over which to calculate.
     warmup*: (integer) Minimum number of seconds of data to collect before
         generating output.
+    includeabsolute: (boolean) Emit absolute values alongside relative
     inpainting:
         min: (number <1.0) inpaint if (value/stat) falls below this value
         max: (number >1.0) inpaint if (value/stat) rises above this value
@@ -23,10 +24,11 @@ Output context variables: method
 
 Input:  (key, value, time)
 
-Output:  (key, value, time)
+Output:  (key, value*, time)
     key is the same as input key.
     value is the ratio of the input value to the statistic for all values for
-        the same key where (old.time > new.time - history).
+        the same key where (old.time > new.time - history). If includeabsolute
+        is set, then value is a triple of (ratio, actual, predicted).
     time is the same as input time.
 """
 
@@ -48,7 +50,8 @@ add_cfg_schema = {
         },
         "history":       {"type": "integer", "exclusiveMinimum": 0},
         "warmup":        {"type": "integer", "exclusiveMinimum": 0},
-        "normalize":     {"type": "boolean"}, # for testing/debugging
+        "normalize": {"type": "boolean"},  # for testing/debugging
+        "includeabsolute": {"type": "boolean"},
         "inpainting":    {
             "type": "object",
             "properties": {
@@ -102,7 +105,13 @@ class MovingStat(SentryModule.SentryModule):
         super().__init__(config, logger, gen)
         self.config = config
         self.warmup = config['warmup']
+
         self.normalize = config.get('normalize', True)
+        self.include_absolute = config.get('includeabsolute', False)
+        if not self.normalize and self.include_absolute:
+            raise SentryModule.UserError("module %s: normalize must be set if "
+                                         "includeabsolute is set" % self.modname)
+
         self.history_duration = config['history']
         if self.history_duration <= self.warmup:
             raise SentryModule.UserError('module %s: history (%d) must be '
@@ -117,7 +126,8 @@ class MovingStat(SentryModule.SentryModule):
             self.should_inpaint = self.ratio_is_extreme
             if self.inpaint_maxduration < self.warmup:
                 logger.warning("module %s: inpainting.maxduration (%d) < "
-                    "warmup (%d), which may lead to gaps in output")
+                               "warmup (%d), which may lead to gaps in output"
+                               % (self.modname, self.inpaint_maxduration, self.warmup))
         else:
             self.inpaint_maxduration = None
             self.inpaint_min = None
@@ -329,4 +339,8 @@ class MovingStat(SentryModule.SentryModule):
                 oldest = data.vtq.popleft()
                 data.insert_remove(newval, oldest[0])
 
-            yield (key, ratio if self.normalize else predicted, t)
+            # if include_absolute is True, then normalize is also True
+            if not self.normalize:
+                yield (key, predicted, t)
+            else:
+                yield (key, ratio if not self.include_absolute else (ratio, newval, predicted), t)
