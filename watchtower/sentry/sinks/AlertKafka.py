@@ -77,14 +77,14 @@ class AlertKafka(SentryModule.Sink):
             # produce() calls
             self.kproducer.poll(0)
 
-            if value is None:
-                continue
-
             if isinstance(value, tuple):
                 (value, actual, predicted) = value
             else:
                 actual = None
                 predicted = None
+
+            if value is None:
+                continue
 
             if key not in self.alert_status:
                 self.alert_status[key] = 0
