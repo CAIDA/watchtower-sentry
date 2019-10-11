@@ -11,6 +11,7 @@ Configuration parameters ('*' indicates required parameter):
     warmup*: (integer) Minimum number of seconds of data to collect before
         generating output.
     includeabsolute: (boolean) Emit absolute values alongside relative
+    minprediction: (number) Minimum prediction value before output is generated
     inpainting:
         min: (number <1.0) inpaint if (value/stat) falls below this value
         max: (number >1.0) inpaint if (value/stat) rises above this value
@@ -52,6 +53,7 @@ add_cfg_schema = {
         "warmup":        {"type": "integer", "exclusiveMinimum": 0},
         "normalize": {"type": "boolean"},  # for testing/debugging
         "includeabsolute": {"type": "boolean"},
+        "minprediction": {"type": "number"},
         "inpainting":    {
             "type": "object",
             "properties": {
@@ -117,6 +119,8 @@ class MovingStat(SentryModule.SentryModule):
             raise SentryModule.UserError('module %s: history (%d) must be '
                 'greater than warmup (%d)' %
                 (self.modname, self.history_duration, self.warmup))
+
+        self.min_prediction = config.get('minprediction', None)
 
         if 'inpainting' in config:
             inp = config['inpainting']
@@ -283,6 +287,11 @@ class MovingStat(SentryModule.SentryModule):
             # Calculate predicted value based on data in the window (not
             # including the new value)
             predicted = data.prediction()
+            if self.min_prediction is not None and \
+                    predicted is not None and \
+                    predicted < self.min_prediction:
+                # predicted value is too low
+                continue
             ratio = value/predicted if predicted else None
             logger.debug("predicted=%r, value=%r, ratio=%r",
                 predicted, value, ratio)

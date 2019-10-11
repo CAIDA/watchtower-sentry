@@ -137,6 +137,10 @@ pipeline:
   # (optional) Emit absolute values alongside relative
   includeabsolute: true
 
+  # (optional) Do not generate output when the predicted value falls below a
+  # threshold
+  minprediction: 20
+
   # (optional) To avoid having extreme values skew the prediction, we can
   # "inpaint": That is, instead of appending an actual extreme value to the
   # history, we instead append the predicted value.
