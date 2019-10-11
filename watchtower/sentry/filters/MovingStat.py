@@ -343,4 +343,4 @@ class MovingStat(SentryModule.SentryModule):
             if not self.normalize:
                 yield (key, predicted, t)
             else:
-                yield (key, ratio if not self.include_absolute else (ratio, newval, predicted), t)
+                yield (key, ratio if not self.include_absolute else (ratio, value, predicted), t)
