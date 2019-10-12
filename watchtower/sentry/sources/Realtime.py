@@ -15,6 +15,7 @@ Output:  (key, value, time)
    data prior to the near-realtime data.
 """
 
+import confluent_kafka
 import logging
 import re
 from pytimeseries.tsk.proxy import TskReader
