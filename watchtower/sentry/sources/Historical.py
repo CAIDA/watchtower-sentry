@@ -54,7 +54,6 @@ class Historical(Datasource):
         self.end_batch = self.start_time
         self.url = config['url']
         self.request = None
-        ctx['expression'] = self.expression # for AlertKafka
 
     def make_next_request(self):
         start_batch = self.end_batch

@@ -26,8 +26,11 @@ pipeline:
 # Obtain time series data from TSK (Time Series Kafka) in real-time
 - module: "sources.Realtime"
 
-  # Fetch data whose keys match this DBATS-style glob pattern
-  expression: 'active.ping-slash24.geo.netacuity.*.*.probers.team-*.caida-sdsc.*.up_slash24_cnt'
+  # Fetch data whose keys match these DBATS-style glob patterns.
+  # These are evaluated in the order listed here, so to maximize performance
+  # they should be in descending order of match probability.
+  expressions:
+  - 'active.ping-slash24.geo.netacuity.*.*.probers.team-*.caida-sdsc.*.up_slash24_cnt'
 
   # Comma-separated list of Kafka brokers in <host>:<port> form.
   brokers: 'clayface.caida.org:9092,croc.caida.org:9092,loki.caida.org:9092'

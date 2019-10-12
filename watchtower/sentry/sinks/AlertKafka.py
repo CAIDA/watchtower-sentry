@@ -61,7 +61,6 @@ class AlertKafka(SentryModule.Sink):
         }
         self.kproducer = confluent_kafka.Producer(kp_cfg)
         try:
-            self.expression = ctx['expression']
             self.method = ctx['method']
         except KeyError as e:
             raise RuntimeError('%s expects ctx[%s] to be set by a previous '
@@ -102,7 +101,7 @@ class AlertKafka(SentryModule.Sink):
                     "name": self.name,
                     "level": "critical" if alert_status != 0 else "normal",
                     "time": t,
-                    "expression": self.expression,
+                    "expression": None,
                     "history_expression": None,
                     "method": self.method,
                     "violations": [{

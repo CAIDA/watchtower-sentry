@@ -27,13 +27,17 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "expression":    {"type": "string"},
+        "expressions": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1
+        },
         "brokers":       {"type": "string"},
         "consumergroup": {"type": "string"},
         "topicprefix":   {"type": "string"},
         "channelname":   {"type": "string"},
     },
-    "required": ["expression", "brokers", "consumergroup", "topicprefix",
+    "required": ["expressions", "brokers", "consumergroup", "topicprefix",
         "channelname"]
 }
 
@@ -42,7 +46,7 @@ class Realtime(Datasource):
     def __init__(self, config, gen, ctx):
         logger.debug("Realtime.__init__")
         super().__init__(config, logger, gen, ctx)
-        self.expression = config['expression']
+        self.expressions = config['expressions']
         self.tsk_reader = TskReader(
                 config['topicprefix'],
                 config['channelname'],
@@ -51,11 +55,10 @@ class Realtime(Datasource):
                 commit_offsets=True
         )
         self.msg_time = None
-        regex = SentryModule.glob_to_regex(self.expression)
-        logger.debug("expression: %s", self.expression)
-        logger.debug("regex:      %s", regex)
-        self.expression_re = re.compile(bytes(regex, 'ascii'))
-        ctx['expression'] = self.expression # for AlertKafka
+        regexes = [SentryModule.glob_to_regex(exp) for exp in self.expressions]
+        logger.debug("expressions: %s", self.expressions)
+        logger.debug("regexes:     %s", regexes)
+        self.expression_res = [re.compile(bytes(regex, 'ascii')) for regex in regexes]
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
         if self.msg_time is None or msg_time > self.msg_time:
@@ -63,8 +66,10 @@ class Realtime(Datasource):
         self.msg_time = msg_time
 
     def _kv_cb(self, key, val):
-        if self.expression_re.match(key):
-            self.incoming.append((key, val, self.msg_time))
+        for regex in self.expression_res:
+            if regex.match(key):
+                self.incoming.append((key, val, self.msg_time))
+                return
 
     def reader_body(self):
         logger.debug("realtime.run_reader()")
