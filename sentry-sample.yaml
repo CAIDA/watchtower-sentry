@@ -24,6 +24,9 @@ pipeline:
 # multiple are shown here for illustration only.
 
 # Obtain time series data from TSK (Time Series Kafka) in real-time
+#
+# NOTE: This source can give data out of time order, so the TimeOrder filter
+# should be used when using the Realtime source.
 - module: "sources.Realtime"
 
   # Fetch data whose keys match these DBATS-style glob patterns.
@@ -31,15 +34,6 @@ pipeline:
   # they should be in descending order of match probability.
   expressions:
   - 'active.ping-slash24.geo.netacuity.*.*.probers.team-*.caida-sdsc.*.up_slash24_cnt'
-
-  # The expected time (in seconds) between two points for the same key.
-  # This is used to enforce strict ordering of data when consuming from
-  # multiple topics.
-  interval: 600
-
-  # Maximum number of seconds to wait for strictly ordered data before assuming
-  # that a point is missing and moving skipping ahead in time
-  timeout: 1200
 
   # Comma-separated list of Kafka brokers in <host>:<port> form.
   brokers: 'clayface.caida.org:9092,croc.caida.org:9092,loki.caida.org:9092'
@@ -83,12 +77,24 @@ pipeline:
     aggrScheme: 'db'
     maxPointsPerSeries: 100
 
-
 # Read time series data from a JSONL file.  This is mainly useful for testing.
 - module: "sources.JsonIn"
 
   # Filename to read jsonl records from. "-" (the default) means stdin.
   file: "in.jsonl"
+
+
+# Ensure per-key data is sorted with monotonically increasing timestamps
+- module: "filters.TimeOrder"
+
+  # The expected time (in seconds) between two points for the same key.
+  # This is used to enforce strict ordering of data when consuming from
+  # multiple topics.
+  interval: 600
+
+  # Maximum number of seconds to wait for strictly ordered data before assuming
+  # that a point is missing and moving skipping ahead in time
+  timeout: 1200
 
 
 # Convert unsigned 64-bit numbers to signed 64-bit numbers.
