@@ -47,7 +47,8 @@ class Realtime(Datasource):
                 config['channelname'],
                 config['consumergroup'],
                 config['brokers'],
-                commit_offsets=False)
+                commit_offsets=True
+        )
         self.msg_time = None
         regex = SentryModule.glob_to_regex(self.expression)
         logger.debug("expression: %s", self.expression)
