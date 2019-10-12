@@ -32,6 +32,15 @@ pipeline:
   expressions:
   - 'active.ping-slash24.geo.netacuity.*.*.probers.team-*.caida-sdsc.*.up_slash24_cnt'
 
+  # The expected time (in seconds) between two points for the same key.
+  # This is used to enforce strict ordering of data when consuming from
+  # multiple topics.
+  interval: 600
+
+  # Maximum number of seconds to wait for strictly ordered data before assuming
+  # that a point is missing and moving skipping ahead in time
+  timeout: 1200
+
   # Comma-separated list of Kafka brokers in <host>:<port> form.
   brokers: 'clayface.caida.org:9092,croc.caida.org:9092,loki.caida.org:9092'
 
