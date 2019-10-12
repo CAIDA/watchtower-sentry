@@ -35,6 +35,7 @@ Output:  (key, value*, time)
 
 import logging
 import bisect
+import time
 from collections import deque
 from .. import SentryModule
 
@@ -253,6 +254,7 @@ class MovingStat(SentryModule.SentryModule):
 
     def run(self):
         logger.debug("MovingStatistic.run()")
+        last_size_log = None
         for entry in self.gen():
             logger.debug("MD: %s", str(entry))
             key, value, t = entry
@@ -265,6 +267,14 @@ class MovingStat(SentryModule.SentryModule):
                 self.data[key] = data
             else:
                 data = self.data[key]
+
+            # log the number of series we're tracking every 60s
+            # TODO: consider making this configurable
+            now = time.time()
+            if last_size_log is None or (last_size_log + 60) <= now:
+                logging.info("MovingStat: tracking %d keys" % len(self.data))
+                last_size_log = now
+
             if not data.vtq or data.vtq[0][1] > t - self.warmup:
                 # not enough points yet.  Just store the new value.
                 data.vtq.append((value, t))
