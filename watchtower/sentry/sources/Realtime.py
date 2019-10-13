@@ -84,8 +84,8 @@ class Realtime(Datasource):
             if last_log_time + 60 <= now:
                 logging.info("Realtime: %d KVs (%f per sec.), "
                              "%d matched kvs (%f per sec.)" %
-                             (self.kv_cnt, self.kv_match_cnt,
-                              self.kv_cnt/(now-last_log_time),
+                             (self.kv_cnt, self.kv_cnt/(now-last_log_time),
+                              self.kv_match_cnt,
                               self.kv_match_cnt/(now-last_log_time)))
                 self.kv_cnt = 0
                 self.kv_match_cnt = 0
