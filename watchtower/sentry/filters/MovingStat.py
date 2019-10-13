@@ -162,6 +162,7 @@ class MovingStat(SentryModule.SentryModule):
         ctx['method'] = ', '.join(config['type']) # for AlertKafka
 
         self.data = dict()
+        self.last_key_time = dict()
 
     class StatBase:
         def __init__(self, ms_ctx):
@@ -265,8 +266,16 @@ class MovingStat(SentryModule.SentryModule):
             if key not in self.data:
                 data = self.statclass(self)
                 self.data[key] = data
+                self.last_key_time[key] = None
             else:
                 data = self.data[key]
+
+            # Ensure timestamps for a key increase monotonically
+            lkt = self.last_key_time[key]
+            if lkt is not None and t <= self.last_key_time[key]:
+                logging.warning("MovingStat: out-of-order: (%s, %s, %s) last_time: %s" %
+                                (key, value, t, self.last_key_time[key]))
+            self.last_key_time[key] = t
 
             # log the number of series we're tracking every 60s
             # TODO: consider making this configurable
