@@ -84,4 +84,9 @@ class TimeOrder(SentryModule.SentryModule):
     def run(self):
         logger.debug("TimeOrder.run()")
         for entry in self.gen():
-            self._handle_kvt(*entry)
+            for res in self._handle_kvt(*entry):
+                yield res
+        # if there is anything left in the buffer, yield it now
+        for key in self.kv_buf:
+            for t in sorted(self.kv_buf[key]):
+                yield (key, self.kv_buf[key][t], t)
