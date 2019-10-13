@@ -64,8 +64,6 @@ class Realtime(Datasource):
         self.kv_match_cnt = 0
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
-        if self.msg_time is None or msg_time > self.msg_time:
-            logger.info("TSK msg time %d" % msg_time)
         self.msg_time = msg_time
 
     def _kv_cb(self, key, val):
