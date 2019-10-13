@@ -38,7 +38,7 @@ add_cfg_schema = {
         "topicprefix":   {"type": "string"},
         "channelname":   {"type": "string"},
     },
-    "required": ["expressions", "interval", "brokers", "consumergroup",
+    "required": ["expressions", "brokers", "consumergroup",
                  "topicprefix", "channelname"]
 }
 
