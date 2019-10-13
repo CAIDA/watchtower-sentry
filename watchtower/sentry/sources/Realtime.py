@@ -60,6 +60,8 @@ class Realtime(Datasource):
         logger.debug("expressions: %s", self.expressions)
         logger.debug("regexes:     %s", regexes)
         self.expression_res = [re.compile(bytes(regex, 'ascii')) for regex in regexes]
+        self.kv_cnt = 0
+        self.kv_match_cnt = 0
 
     def _msg_cb(self, msg_time, version, channel, msgbuf, msgbuflen):
         if self.msg_time is None or msg_time > self.msg_time:
@@ -67,14 +69,27 @@ class Realtime(Datasource):
         self.msg_time = msg_time
 
     def _kv_cb(self, key, val):
+        self.kv_cnt += 1
         for regex in self.expression_res:
             if regex.match(key):
+                self.kv_match_cnt += 1
                 self.incoming.append((key, val, self.msg_time))
                 return
 
     def reader_body(self):
         logger.debug("realtime.run_reader()")
+        last_log_time = time.time()
         while not self.done:
+            now = time.time()
+            if last_log_time + 60 >= now:
+                logging.info("Realtime: %d KVs (%f per sec.), "
+                             "%d matched kvs (%f per sec.)" %
+                             (self.kv_cnt, self.kv_match_cnt,
+                              self.kv_cnt/(now-last_log_time),
+                              self.kv_match_cnt/(now-last_log_time)))
+                self.kv_cnt = 0
+                self.kv_match_cnt = 0
+                last_log_time = now
             logger.debug("tsk_reader_poll")
             msg = self.tsk_reader.poll(10000)
             if msg is None:
