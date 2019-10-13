@@ -2,6 +2,7 @@ import sys
 import json
 import logging
 import math
+import random
 
 loghandler = logging.StreamHandler()
 loghandler.setFormatter(logging.Formatter(
@@ -46,6 +47,7 @@ params = {
     'outage': [[14000, 15, 30], [12000, 10, 10]],
     'hole':   [[23000, 20, 40], [23000, 12, 10]],
     'shift':  [[35000, 30, 50], [31000, 15, 10]],
+    'order':  [[43000, 40, 60], [39000, 17, 10]],
 }
 
 history = dict()
@@ -58,11 +60,16 @@ for group in params:
     exp_aggsum[group] = list()
     exp_median[group] = list()
 
-# make up some data
-for i in range(0, steps):
-    t = timebase + i * timestep
+# compute the times
+times = [timebase + i * timestep for i in range(0, steps)]
 
-    for group in params:
+# make up some data
+for group in params:
+    if group == "order":
+        random.seed(1)
+        random.shuffle(times)
+
+    for i in range(0, steps):
         aggsum = 0
         inpaint = False
 
@@ -95,7 +102,7 @@ for i in range(0, steps):
 
             value = int(value)
             aggsum += value
-            indata.append((key, value, t))
+            indata.append((key, value, times[i]))
 
             # print("%3d %s %s" % (i, key, value*"#")) # debug
 
@@ -138,6 +145,41 @@ s.run()
 
 assert outdata == indata
 
+####################################################################
+# Test strict time ordering
+cfg['pipeline'].insert(-1, {
+        "module": "filters.TimeOrder",
+        "interval": timestep,
+        "timeout": timestep * 2,
+    })
+outdata.clear()
+s = Sentry(None, cfg)
+s.run()
+
+# check output timestamps are monotonically increasing by key
+lt = {}
+for (k, v, t) in outdata:
+    if k not in lt:
+        lt[k] = t
+        continue
+    assert t > lt[k]
+    lt[k] = t
+
+# ensure input and output are equal after sorting
+# this is tricky since data that is older than the first timestamp is dropped
+filtered_in = []
+ft = {}
+for (k, v, t) in indata:
+    if k not in ft:
+        ft[k] = t
+    if t >= ft[k]:
+        filtered_in.append((k, v, t))
+
+assert len(filtered_in) == len(outdata)
+assert sorted(filtered_in) == sorted(outdata)
+
+print("TimeOrder test passed")
+
 
 ####################################################################
 # Test 2: aggregating by group
@@ -164,12 +206,15 @@ for i, entry in enumerate(outdata):
     results[group][t] = value
     # make sure output for key is ordered by time
     if key in prev_time:
-        assert t > prev_time[key], \
-            "result #%d, key %r: time %r should be > %d" % \
-            (i, key, t, prev_time[key])
+        assert t == prev_time[key] + timestep, \
+            "result #%d, key %r: time %r should be == %d" % \
+            (i, key, t, prev_time[key] + timestep)
     prev_time[key] = t
 
 for group in params:
+    if group == "order":
+        # TODO: figure out how to test this
+        continue
     assert len(results[group]) == steps, \
         "group %r: result count %d != expected %d" % \
         (group, len(results[group]), steps)
@@ -178,9 +223,14 @@ for entry in outdata:
     key, value, t = entry
     i = (t - timebase) // timestep
     group = key.split(sep='.')[1]
+    if group == "order":
+        # TODO: figure out how to test this
+        continue
     assert exp_aggsum[group][i] == value, \
         "key %r, time %r: value %d != expected %r" % \
         (key, t, value, exp_aggsum[group][i])
+
+print("AggSum test passed")
 
 
 ####################################################################
@@ -221,6 +271,9 @@ for i, entry in enumerate(outdata):
     prev_time[key] = t
 
 for group in params:
+    if group == "order":
+        # TODO: figure out how to test this
+        continue
     assert len(results[group]) == steps - warmup_steps, \
         "group %r: result count %d != expected %d" % \
         (group, len(results[group]), steps - warmup_steps)
@@ -229,6 +282,9 @@ for entry in outdata:
     key, value, t = entry
     i = (t - timebase) // timestep
     group = key.split(sep='.')[1]
+    if group == "order":
+        # TODO: figure out how to test this
+        continue
     if median_normalize:
         exp = exp_aggsum[group][i] / exp_median[group][i]
     else:
@@ -241,6 +297,8 @@ for entry in outdata:
 #for entry in outdata:
 #    json.dump(entry, sys.stdout)
 #    print()
+
+print("MovingStat test passed")
 
 
 ####################################################################
