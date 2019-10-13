@@ -81,7 +81,7 @@ class Realtime(Datasource):
         last_log_time = time.time()
         while not self.done:
             now = time.time()
-            if last_log_time + 60 >= now:
+            if last_log_time + 60 <= now:
                 logging.info("Realtime: %d KVs (%f per sec.), "
                              "%d matched kvs (%f per sec.)" %
                              (self.kv_cnt, self.kv_match_cnt,
