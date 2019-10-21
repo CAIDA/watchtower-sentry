@@ -24,6 +24,11 @@ from .. import SentryModule
 from ._Datasource import Datasource
 
 
+# list of kafka "errors" that are not really errors
+KAFKA_IGNORED_ERRS = [
+    confluent_kafka.KafkaError._PARTITION_EOF,
+    confluent_kafka.KafkaError._TIMED_OUT,
+]
 logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
@@ -113,10 +118,8 @@ class Realtime(Datasource):
                     logger.debug("cond_consumable.notify")
                     self.consumable = True
                     self.cond_consumable.notify()
-            elif msg.error().code() == \
-                    confluent_kafka.KafkaError._PARTITION_EOF:
-                # no new messages
-                logger.debug("TSK msg: PARTITION_EOF")
+            elif msg.error().code() in KAFKA_IGNORED_ERRS:
+                logger.debug("Ignoring benign kafka 'error': %s" % msg.error().code())
             else:
                 logger.error("Unhandled Kafka error, shutting down")
                 logger.error(msg.error())
