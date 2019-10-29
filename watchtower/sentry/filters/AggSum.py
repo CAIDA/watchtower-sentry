@@ -1,7 +1,7 @@
 """Filter that sums values across a group of keys.
 
 Configuration parameters ('*' indicates required parameter):
-    expression*: (string) A DBATS-style glob pattern that input keys must
+    expressions*: (array) An array of DBATS-style glob patterns that input keys must
         match.  Aggregation groups are identified by the substring(s) that
         match(es) parenthesized subexpression(s).
     groupsize: (integer) Expected number of inputs per group.  Once a group
@@ -33,12 +33,16 @@ logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
     "properties": {
-        "expression":  {"type": "string"},
+        "expressions":  {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1
+        },
         "groupsize":   {"type": "integer", "exclusiveMinimum": 0},
         "timeout":     {"type": "integer", "exclusiveMinimum": 0},
         "droppartial": {"type": "boolean"},
     },
-    "required": ["expression", "timeout"]
+    "required": ["expressions", "timeout"]
 }
 
 class AggSum(SentryModule.SentryModule):
@@ -53,8 +57,8 @@ class AggSum(SentryModule.SentryModule):
     def __init__(self, config, gen, ctx):
         logger.debug("AggSum.__init__")
         super().__init__(config, logger, gen)
-        self.expression = config['expression']
-        self.ascii_expression = bytes(self.expression, 'ascii')
+        self.expressions = config['expressions']
+        self.ascii_expressions = [bytes(exp, 'ascii') for exp in self.expressions]
         self.timeout = config['timeout']
         self.groupsize = config.get('groupsize', None)
         self.droppartial = config.get('droppartial', False)
@@ -71,15 +75,14 @@ class AggSum(SentryModule.SentryModule):
         # expired data for each group
         self.old_keys = dict()
 
-        regex = SentryModule.glob_to_regex(self.expression)
-        logger.debug("expression: %s", self.expression)
-        logger.debug("regex:      %s", regex)
-        self.expression_re = re.compile(bytes(regex, 'ascii'))
+        regexes = [SentryModule.glob_to_regex(exp) for exp in self.expressions]
+        logger.debug("expressions: %s", self.expressions)
+        logger.debug("regexes:      %s", regexes)
+        self.expression_res = [re.compile(bytes(r, 'ascii')) for r in regexes]
 
     # replace parens in expression with group id
     # (this could be optimized by pre-splitting expression)
-    def groupkey(self, groupid):
-        groupkey = self.ascii_expression
+    def groupkey(self, groupkey, groupid):
         for part in groupid:
             groupkey = re.sub(rb"\([^)]*\)", part, groupkey, count=1)
         return groupkey
@@ -89,7 +92,13 @@ class AggSum(SentryModule.SentryModule):
         for entry in self.gen():
             logger.debug("AG: %s", entry)
             key, value, t = entry
-            match = self.expression_re.match(key)
+            match = False
+            ascii_exp = None
+            for idx, exp_re in enumerate(self.expression_res):
+                match = exp_re.match(key)
+                if match:
+                    ascii_exp = self.ascii_expressions[idx]
+                    break
             if not match:
                 continue
             groupid = match.groups()
@@ -120,7 +129,7 @@ class AggSum(SentryModule.SentryModule):
                 groupid, value, t, agginfo.count, agginfo.vsum)
 
             if self.groupsize and agginfo.count == self.groupsize:
-                groupkey = self.groupkey(groupid)
+                groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached groupsize for %r after %ds",
                     aggkey, now - agginfo.first_seen)
                 del self.agg_by_group[groupid][t]
@@ -157,7 +166,7 @@ class AggSum(SentryModule.SentryModule):
                 self.agg_by_seen.popitem(False)
                 groupid, t = aggkey
                 del self.agg_by_group[groupid][t]
-                groupkey = self.groupkey(groupid)
+                groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached timeout for %r with %d/%d items",
                     aggkey, agginfo.count, self.groupsize)
                 if not self.droppartial:
