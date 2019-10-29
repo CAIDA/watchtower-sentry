@@ -191,6 +191,12 @@ pipeline:
   # is required.
   min: 0.8
 
+  # (optional) Do not generate an alert until the event has lasted for at least
+  #  this many seconds. The event will still have the original start time, but
+  # will be emitted after enough subsequent data points have been received to
+  # satisfy this minimum duration.
+  minduration: 60
+
   # Unique identifier for this data source (this is constant across
   # aggregation levels). Used when constructing an Alert object.
   fqid: active.ping-slash24.team-1.up_slash24_cnt
