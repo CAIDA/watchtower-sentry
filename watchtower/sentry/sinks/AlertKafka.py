@@ -136,18 +136,25 @@ class AlertKafka(SentryModule.Sink):
             if alert_status != self.alert_status[key]:
                 self.alert_status[key] = alert_status
                 self.alert_state[key] = (t, value, actual, predicted)
-                # only produce alert if minduration is not set
-                if self.minduration is None:
+                # only produce alert if minduration is not set, or if this is a
+                # return to normal
+                if self.minduration is None or self.minduration == 0 \
+                        or alert_status == 0:
                     self._produce_alert(alert_status, t, key, value,
                                         actual, predicted)
+                else:
+                    logger.info("Suppressing alert for %s" % key)
             elif alert_status != 0 and self.minduration is not None \
                     and key in self.alert_state:
                 # ongoing non-normal event, check minduration
                 (init_t, init_v, init_a, init_p) = self.alert_state[key]
-                if init_t + self.minduration >= t:
+                if (init_t + self.minduration) >= t:
                     self._produce_alert(alert_status, init_t, key, init_v,
                                         init_a, init_p)
                     del self.alert_state[key]
+                else:
+                    logger.info("Suppressing alert for %s (duration: %d)" %
+                                (key, t - init_t))
 
         self.kproducer.flush()
         logger.debug("AlertKafka.run() done")
