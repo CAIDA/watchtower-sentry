@@ -40,6 +40,11 @@ add_cfg_schema = {
     "oneOf": [{"required": ["min"]}, {"required": ["max"]}]
 }
 
+STATUS_NORMAL = 0
+STATUS_HIGH = 1
+STATUS_LOW = -1
+
+
 class AlertKafka(SentryModule.Sink):
     def __init__(self, config, gen, ctx):
         logger.debug("AlertKafka.__init__")
@@ -123,38 +128,68 @@ class AlertKafka(SentryModule.Sink):
                 continue
 
             if key not in self.alert_status:
-                self.alert_status[key] = 0
+                # default to normal status
+                self.alert_status[key] = STATUS_NORMAL
             if self.min is not None and value < self.min:
                 # "too-low" alert
-                alert_status = -1
+                alert_status = STATUS_LOW
             elif self.max is not None and value > self.max:
                 # "too-high" alert
-                alert_status = 1
+                alert_status = STATUS_HIGH
             else:
                 # "normal" alert
-                alert_status = 0
+                alert_status = STATUS_NORMAL
+
+            # XXX: following can probably be refactored
             if alert_status != self.alert_status[key]:
+                # change in status, either trigger an alert or defer and keep
+                # state
                 self.alert_status[key] = alert_status
-                self.alert_state[key] = (t, value, actual, predicted)
-                # only produce alert if minduration is not set, or if this is a
-                # return to normal
-                if self.minduration is None or self.minduration == 0 \
-                        or alert_status == 0:
+
+                if self.minduration is None or self.minduration == 0:
+                    # minduration is disabled, so trigger alert now
                     self._produce_alert(alert_status, t, key, value,
                                         actual, predicted)
+                elif alert_status == STATUS_NORMAL:
+                    # back to normal
+                    if key not in self.alert_state:
+                        # back to normal, but we have a minduration set, so we
+                        # would have tracked state for this event. given that
+                        # there is no state, it means the event was long enough
+                        # to trigger an alert, so we need to trigger the
+                        # normal event
+                        self._produce_alert(alert_status, t, key, value,
+                                            actual, predicted)
+                    else:
+                        # back to normal, and we have a minduration, so given
+                        # that there is state being tracked, we haven't yet
+                        # reached the minduration, so the outage must have been
+                        # too short, just clean up state
+                        (init_t, init_v, init_a, init_p) = self.alert_state[key]
+                        assert (t - init_t) < self.minduration
+                        del self.alert_state[key]
                 else:
+                    # we have a minduration, and this is an "outage" event,
+                    # start tracking state
+                    self.alert_state[key] = (t, value, actual, predicted)
                     logger.info("Suppressing alert for %s" % key)
-            elif alert_status != 0 and self.minduration is not None \
-                    and key in self.alert_state:
-                # ongoing non-normal event, check minduration
-                (init_t, init_v, init_a, init_p) = self.alert_state[key]
-                if (init_t + self.minduration) >= t:
-                    self._produce_alert(alert_status, init_t, key, init_v,
-                                        init_a, init_p)
-                    del self.alert_state[key]
-                else:
-                    logger.info("Suppressing alert for %s (duration: %d)" %
-                                (key, t - init_t))
+            elif alert_status != STATUS_NORMAL:
+                # continuation of the event (but not continuation of normal)
+                if key in self.alert_state:
+                    # we're tracking state about this event, so we haven't
+                    # yet triggered the alert. check the duration and maybe
+                    # trigger the alert
+                    (init_t, init_v, init_a, init_p) = self.alert_state[key]
+                    if (init_t + self.minduration) >= t:
+                        self._produce_alert(alert_status, init_t, key, init_v,
+                                            init_a, init_p)
+                        del self.alert_state[key]
+                    else:
+                        logger.info("Continuing to suppress alert for %s "
+                                    "(duration: %d)" % (key, t - init_t))
+            else:
+                # continuation of normal, who cares
+                pass
 
         self.kproducer.flush()
         logger.debug("AlertKafka.run() done")
