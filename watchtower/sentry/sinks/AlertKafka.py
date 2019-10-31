@@ -172,7 +172,7 @@ class AlertKafka(SentryModule.Sink):
                     # we have a minduration, and this is an "outage" event,
                     # start tracking state
                     self.alert_state[key] = (t, value, actual, predicted)
-                    logger.info("Suppressing alert for %s" % key)
+                    logger.debug("Suppressing alert for %s" % key)
             elif alert_status != STATUS_NORMAL:
                 # continuation of the event (but not continuation of normal)
                 if key in self.alert_state:
@@ -180,10 +180,10 @@ class AlertKafka(SentryModule.Sink):
                     # yet triggered the alert. check the duration and maybe
                     # trigger the alert
                     (init_t, init_v, init_a, init_p) = self.alert_state[key]
-                    if (init_t + self.minduration) >= t:
-                        logger.info("Suppressed alert for '%s' passed minduration "
-                                    "(init_t: %d, t: %d, minduration: %d)" %
-                                    (key, init_t, t, self.minduration))
+                    if (init_t + self.minduration) <= t:
+                        logger.debug("Suppressed alert for '%s' passed minduration "
+                                     "(init_t: %d, t: %d, minduration: %d)" %
+                                     (key, init_t, t, self.minduration))
                         self._produce_alert(alert_status, init_t, key, init_v,
                                             init_a, init_p)
                         del self.alert_state[key]
