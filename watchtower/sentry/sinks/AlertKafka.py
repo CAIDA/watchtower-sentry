@@ -181,6 +181,9 @@ class AlertKafka(SentryModule.Sink):
                     # trigger the alert
                     (init_t, init_v, init_a, init_p) = self.alert_state[key]
                     if (init_t + self.minduration) >= t:
+                        logger.info("Suppressed alert for '%s' passed minduration "
+                                    "(init_t: %d, t: %d, minduration: %d)" %
+                                    (key, init_t, t, self.minduration))
                         self._produce_alert(alert_status, init_t, key, init_v,
                                             init_a, init_p)
                         del self.alert_state[key]
