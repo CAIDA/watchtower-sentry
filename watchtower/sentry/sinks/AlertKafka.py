@@ -166,7 +166,7 @@ class AlertKafka(SentryModule.Sink):
                         # reached the minduration, so the outage must have been
                         # too short, just clean up state
                         (init_t, init_v, init_a, init_p) = self.alert_state[key]
-                        assert (t - init_t) < self.minduration
+                        assert (t - init_t) <= self.minduration
                         del self.alert_state[key]
                 else:
                     # we have a minduration, and this is an "outage" event,
