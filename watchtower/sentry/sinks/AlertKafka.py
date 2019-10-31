@@ -158,6 +158,8 @@ class AlertKafka(SentryModule.Sink):
                         # there is no state, it means the event was long enough
                         # to trigger an alert, so we need to trigger the
                         # normal event
+                        logger.info("Creating normal alert for %s at %d" %
+                                    (key, t))
                         self._produce_alert(alert_status, t, key, value,
                                             actual, predicted)
                     else:
@@ -166,13 +168,16 @@ class AlertKafka(SentryModule.Sink):
                         # reached the minduration, so the outage must have been
                         # too short, just clean up state
                         (init_t, init_v, init_a, init_p) = self.alert_state[key]
+                        logger.info("Discarding suppressed alert for '%s' "
+                                    "(init_t: %d, t: %d, minduration: %d)"
+                                    % (key, init_t, t, self.minduration))
                         assert (t - init_t) <= self.minduration
                         del self.alert_state[key]
                 else:
                     # we have a minduration, and this is an "outage" event,
                     # start tracking state
                     self.alert_state[key] = (t, value, actual, predicted)
-                    logger.debug("Suppressing alert for %s" % key)
+                    logger.info("Suppressing alert for %s" % key)
             elif alert_status != STATUS_NORMAL:
                 # continuation of the event (but not continuation of normal)
                 if key in self.alert_state:
@@ -181,9 +186,9 @@ class AlertKafka(SentryModule.Sink):
                     # trigger the alert
                     (init_t, init_v, init_a, init_p) = self.alert_state[key]
                     if (init_t + self.minduration) <= t:
-                        logger.debug("Suppressed alert for '%s' passed minduration "
-                                     "(init_t: %d, t: %d, minduration: %d)" %
-                                     (key, init_t, t, self.minduration))
+                        logger.info("Suppressed alert for '%s' passed minduration "
+                                    "(init_t: %d, t: %d, minduration: %d)" %
+                                    (key, init_t, t, self.minduration))
                         self._produce_alert(alert_status, init_t, key, init_v,
                                             init_a, init_p)
                         del self.alert_state[key]
