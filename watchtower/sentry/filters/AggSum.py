@@ -63,17 +63,21 @@ class AggSum(SentryModule.SentryModule):
         self.groupsize = config.get('groupsize', None)
         self.droppartial = config.get('droppartial', False)
 
-        # agg_by_group is a 2-level dict that stores agginfo keyed by groupid,
-        # then timestamp, so it's easy to find all agginfos for a given group.
+        # agg_by_group is a 3-level dict that stores agginfo keyed by expression,
+        # groupid, then timestamp, so it's easy to find all agginfos for a given group.
         self.agg_by_group = dict()
+        for ascii_exp in self.ascii_expressions:
+            self.agg_by_group[ascii_exp] = dict()
 
-        # agg_by_seen stores agginfo keyed by (groupid, t) and ordered by
-        # first_seen, so it's easy to find all stale agginfos.
+        # agg_by_seen stores agginfo keyed by (expression, groupid, t) and
+        # ordered by first_seen, so it's easy to find all stale agginfos.
         self.agg_by_seen = OrderedDict()
 
         # old_keys stores the timestamp of the most recent complete or
         # expired data for each group
         self.old_keys = dict()
+        for ascii_exp in self.ascii_expressions:
+            self.old_keys[ascii_exp] = dict()
 
         regexes = [SentryModule.glob_to_regex(exp) for exp in self.expressions]
         logger.debug("expressions: %s", self.expressions)
@@ -107,19 +111,20 @@ class AggSum(SentryModule.SentryModule):
             now = time.time()
 
             agginfo = None
-            if groupid in self.agg_by_group:
-                if t in self.agg_by_group[groupid]:
-                    agginfo = self.agg_by_group[groupid][t]
-            elif groupid in self.old_keys and t < self.old_keys[groupid]:
+            if groupid in self.agg_by_group[ascii_exp]:
+                if t in self.agg_by_group[ascii_exp][groupid]:
+                    agginfo = self.agg_by_group[ascii_exp][groupid][t]
+            elif groupid in self.old_keys[ascii_exp] \
+                    and t < self.old_keys[ascii_exp][groupid]:
                 logger.error("unexpected data for old aggregate (%r, %d) "
                     "from %s", groupid, t, key)
                 continue
             else:
-                self.agg_by_group[groupid] = dict()
+                self.agg_by_group[ascii_exp][groupid] = dict()
             if not agginfo:
                 agginfo = AggSum._Agginfo(first_seen=now, count=0, vsum=0)
-                self.agg_by_group[groupid][t] = agginfo
-                self.agg_by_seen[(groupid, t)] = agginfo
+                self.agg_by_group[ascii_exp][groupid][t] = agginfo
+                self.agg_by_seen[(ascii_exp, groupid, t)] = agginfo
 
             agginfo.count += 1
             if value is not None:
@@ -132,8 +137,8 @@ class AggSum(SentryModule.SentryModule):
                 groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached groupsize for %r after %ds",
                     aggkey, now - agginfo.first_seen)
-                del self.agg_by_group[groupid][t]
-                del self.agg_by_seen[(groupid, t)]
+                del self.agg_by_group[ascii_exp][groupid][t]
+                del self.agg_by_seen[(ascii_exp, groupid, t)]
 
                 # Assume that data for a given key will always arrive in time
                 # order.  Then, if we have all the data for a group at time t,
@@ -144,34 +149,36 @@ class AggSum(SentryModule.SentryModule):
                 # results, we would have to defer outputting this aggregate
                 # until older aggregates for this group time out.)
                 oldtimes = sorted([oldtime for oldtime in
-                    self.agg_by_group[groupid].keys() if oldtime < t])
+                    self.agg_by_group[ascii_exp][groupid].keys() if oldtime < t])
                 for oldtime in oldtimes:
-                    old_agginfo = self.agg_by_group[groupid][oldtime]
+                    old_agginfo = self.agg_by_group[ascii_exp][groupid][oldtime]
                     logger.debug("giving up on %r with %d/%d items",
                         (groupid, oldtime), old_agginfo.count,
                         self.groupsize)
                     yield (groupkey, old_agginfo.vsum, oldtime)
-                    del self.agg_by_group[groupid][oldtime]
-                    del self.agg_by_seen[(groupid, oldtime)]
+                    del self.agg_by_group[ascii_exp][groupid][oldtime]
+                    del self.agg_by_seen[(ascii_exp, groupid, oldtime)]
 
                 yield (groupkey, agginfo.vsum, t)
-                if groupid not in self.old_keys or t < self.old_keys[groupid]:
-                    self.old_keys[groupid] = t
+                if groupid not in self.old_keys[ascii_exp] \
+                        or t < self.old_keys[ascii_exp][groupid]:
+                    self.old_keys[ascii_exp][groupid] = t
 
             expiry_time = now - self.timeout
             while self.agg_by_seen:
-                aggkey, agginfo = next(iter(self.agg_by_seen.items()), None)
+                ascii_exp, aggkey, agginfo = next(iter(self.agg_by_seen.items()), None)
                 if agginfo.first_seen > expiry_time:
                     break
                 self.agg_by_seen.popitem(False)
                 groupid, t = aggkey
-                del self.agg_by_group[groupid][t]
+                del self.agg_by_group[ascii_exp][groupid][t]
                 groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached timeout for %r with %d/%d items",
                     aggkey, agginfo.count, self.groupsize)
                 if not self.droppartial:
                     yield (groupkey, agginfo.vsum, t)
-                if groupid not in self.old_keys or t > self.old_keys[groupid]:
-                    self.old_keys[groupid] = t
+                if groupid not in self.old_keys[ascii_exp] \
+                        or t > self.old_keys[ascii_exp][groupid]:
+                    self.old_keys[ascii_exp][groupid] = t
 
         logger.debug("AggSum.run() done")
