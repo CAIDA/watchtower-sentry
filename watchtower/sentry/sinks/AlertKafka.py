@@ -171,7 +171,11 @@ class AlertKafka(SentryModule.Sink):
                         logger.info("Discarding suppressed alert for '%s' "
                                     "(init_t: %d, t: %d, minduration: %d)"
                                     % (key, init_t, t, self.minduration))
-                        assert (t - init_t) <= self.minduration
+                        if (t - init_t) > self.minduration:
+                            logger.warning("Discarding suppressed alert for "
+                                           "'%s' that exceeds minduration "
+                                           "(init_t: %d, t: %d, minduration: %d)"
+                                           % (key, init_t, t, self.minduration))
                         del self.alert_state[key]
                 else:
                     # we have a minduration, and this is an "outage" event,
