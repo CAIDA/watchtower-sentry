@@ -106,7 +106,7 @@ class AggSum(SentryModule.SentryModule):
             if not match:
                 continue
             groupid = match.groups()
-            aggkey = (groupid, t)
+            aggkey = (ascii_exp, groupid, t)
 
             now = time.time()
 
@@ -166,11 +166,11 @@ class AggSum(SentryModule.SentryModule):
 
             expiry_time = now - self.timeout
             while self.agg_by_seen:
-                ascii_exp, aggkey, agginfo = next(iter(self.agg_by_seen.items()), None)
+                aggkey, agginfo = next(iter(self.agg_by_seen.items()), None)
                 if agginfo.first_seen > expiry_time:
                     break
                 self.agg_by_seen.popitem(False)
-                groupid, t = aggkey
+                ascii_exp, groupid, t = aggkey
                 del self.agg_by_group[ascii_exp][groupid][t]
                 groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached timeout for %r with %d/%d items",
