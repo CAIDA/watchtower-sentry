@@ -130,8 +130,9 @@ class AggSum(SentryModule.SentryModule):
             if value is not None:
                 agginfo.vsum += value
 
-            logger.debug("k=%r, v=%r, t=%d; count=%d, vsum=%s",
-                groupid, value, t, agginfo.count, agginfo.vsum)
+            logger.debug("ae=%s, k=%r, v=%r, t=%d; count=%d, vsum=%s",
+                         ascii_exp, groupid, value, t, agginfo.count,
+                         agginfo.vsum)
 
             if self.groupsize and agginfo.count == self.groupsize:
                 groupkey = self.groupkey(ascii_exp, groupid)
