@@ -15,7 +15,9 @@ from .. import SentryModule
 logger = logging.getLogger(__name__)
 
 add_cfg_schema = {
-    "properties": {},
+    "properties": {
+        "name": {"type": "string"},
+    },
     "required": []
 }
 
@@ -24,6 +26,7 @@ class TimeOrderChecker(SentryModule.SentryModule):
     def __init__(self, config, gen, ctx):
         logger.debug("TimeOrderChecker.__init__")
         super().__init__(config, logger, gen)
+        self.name = config.get("name", "TimeOrderChecker")
         self.last_key_time = {}  # last_key_time[key] = ts
 
     def run(self):
@@ -32,6 +35,10 @@ class TimeOrderChecker(SentryModule.SentryModule):
             if key not in self.last_key_time:
                 self.last_key_time[key] = t
             else:
-                assert self.last_key_time[key] < t
+                if self.last_key_time[key] >= t:
+                    logger.error("[%s] Out-of-order data for '%s'. "
+                                 "Last time: %d, this time: %d" %
+                                 (self.name, key, self.last_key_time[key], t))
+                    raise ValueError
                 self.last_key_time[key] = t
             yield (key, val, t)
