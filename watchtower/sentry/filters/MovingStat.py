@@ -205,6 +205,8 @@ class MovingStat(SentryModule.SentryModule):
                 rank = 0
             else:
                 N = len(self.values)
+                if N == 0:
+                    return None
                 # -(-N*k//q) is equivalent to ceil(N*k/q), but faster
                 rank = -(-N * self.ms_ctx.k // self.ms_ctx.q) - 1
             return self.values[rank]
