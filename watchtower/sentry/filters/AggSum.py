@@ -104,6 +104,10 @@ class AggSum(SentryModule.SentryModule):
             del self.agg_by_group[ascii_exp][groupid][oldtime]
             del self.agg_by_seen[(ascii_exp, groupid, oldtime)]
 
+    def _is_old(self, ascii_exp, groupid, t):
+        return groupid in self.old_keys[ascii_exp] \
+               and t < self.old_keys[ascii_exp][groupid]
+
     def run(self):
         logger.debug("AggSum.run()")
         for entry in self.gen():
@@ -124,14 +128,13 @@ class AggSum(SentryModule.SentryModule):
             now = time.time()
 
             agginfo = None
-            if groupid in self.agg_by_group[ascii_exp]:
+            if self._is_old(ascii_exp, groupid, t):
+                logger.error("unexpected data for old aggregate (%r, %d) "
+                             "from %s", groupid, t, key)
+                continue
+            elif groupid in self.agg_by_group[ascii_exp]:
                 if t in self.agg_by_group[ascii_exp][groupid]:
                     agginfo = self.agg_by_group[ascii_exp][groupid][t]
-            elif groupid in self.old_keys[ascii_exp] \
-                    and t < self.old_keys[ascii_exp][groupid]:
-                logger.error("unexpected data for old aggregate (%r, %d) "
-                    "from %s", groupid, t, key)
-                continue
             else:
                 self.agg_by_group[ascii_exp][groupid] = dict()
             if not agginfo:
@@ -163,10 +166,11 @@ class AggSum(SentryModule.SentryModule):
                 # results, we would have to defer outputting this aggregate
                 # until older aggregates for this group time out.)
                 yield from self._expire_oldtimes(ascii_exp, groupkey, groupid, t)
-
+                # now yield this data point
                 yield (groupkey, agginfo.vsum, t)
+                # and update the old_keys pointer
                 if groupid not in self.old_keys[ascii_exp] \
-                        or t < self.old_keys[ascii_exp][groupid]:
+                        or t > self.old_keys[ascii_exp][groupid]:
                     self.old_keys[ascii_exp][groupid] = t
 
             expiry_time = now - self.timeout
@@ -180,9 +184,12 @@ class AggSum(SentryModule.SentryModule):
                 groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached timeout for %r with %d/%d items",
                     aggkey, agginfo.count, self.groupsize)
+                # expire any other partial data prior to this time
                 self._expire_oldtimes(ascii_exp, groupkey, groupid, t)
+                # and now yield this point (if we want partial data)
                 if not self.droppartial:
                     yield (groupkey, agginfo.vsum, t)
+                # and then update the old_keys pointer
                 if groupid not in self.old_keys[ascii_exp] \
                         or t > self.old_keys[ascii_exp][groupid]:
                     self.old_keys[ascii_exp][groupid] = t
