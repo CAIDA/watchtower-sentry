@@ -92,6 +92,10 @@ class AggSum(SentryModule.SentryModule):
         return groupkey
 
     def _expire_oldtimes(self, ascii_exp, groupkey, groupid, max_t):
+        logger.debug("Expiring old data for (%s, %s) with t < %d. "
+                     "Currently tracking: %r" %
+                     (ascii_exp, groupid, max_t,
+                      self.agg_by_group[ascii_exp][groupid]))
         oldtimes = sorted([oldtime for oldtime in
                            self.agg_by_group[ascii_exp][groupid].keys() if oldtime < max_t])
         for oldtime in oldtimes:
@@ -107,6 +111,11 @@ class AggSum(SentryModule.SentryModule):
     def _is_old(self, ascii_exp, groupid, t):
         return groupid in self.old_keys[ascii_exp] \
                and t < self.old_keys[ascii_exp][groupid]
+
+    def _update_oldkeys(self, ascii_exp, groupid, t):
+        if groupid not in self.old_keys[ascii_exp] \
+                or t > self.old_keys[ascii_exp][groupid]:
+            self.old_keys[ascii_exp][groupid] = t
 
     def run(self):
         logger.debug("AggSum.run()")
@@ -169,9 +178,7 @@ class AggSum(SentryModule.SentryModule):
                 # now yield this data point
                 yield (groupkey, agginfo.vsum, t)
                 # and update the old_keys pointer
-                if groupid not in self.old_keys[ascii_exp] \
-                        or t > self.old_keys[ascii_exp][groupid]:
-                    self.old_keys[ascii_exp][groupid] = t
+                self._update_oldkeys(ascii_exp, groupid, t)
 
             expiry_time = now - self.timeout
             while self.agg_by_seen:
@@ -185,13 +192,11 @@ class AggSum(SentryModule.SentryModule):
                 logger.debug("reached timeout for %r with %d/%d items",
                     aggkey, agginfo.count, self.groupsize)
                 # expire any other partial data prior to this time
-                self._expire_oldtimes(ascii_exp, groupkey, groupid, t)
+                yield from self._expire_oldtimes(ascii_exp, groupkey, groupid, t)
                 # and now yield this point (if we want partial data)
                 if not self.droppartial:
                     yield (groupkey, agginfo.vsum, t)
                 # and then update the old_keys pointer
-                if groupid not in self.old_keys[ascii_exp] \
-                        or t > self.old_keys[ascii_exp][groupid]:
-                    self.old_keys[ascii_exp][groupid] = t
+                self._update_oldkeys(ascii_exp, groupid, t)
 
         logger.debug("AggSum.run() done")
