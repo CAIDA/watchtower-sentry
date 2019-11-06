@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 add_cfg_schema = {
     "properties": {
         "name": {"type": "string"},
+        "fatal": {"type": "boolean"},
     },
     "required": []
 }
@@ -27,6 +28,7 @@ class TimeOrderChecker(SentryModule.SentryModule):
         logger.debug("TimeOrderChecker.__init__")
         super().__init__(config, logger, gen)
         self.name = config.get("name", "TimeOrderChecker")
+        self.fatal = config.get("fatal", False)
         self.last_key_time = {}  # last_key_time[key] = ts
 
     def run(self):
@@ -36,9 +38,12 @@ class TimeOrderChecker(SentryModule.SentryModule):
                 self.last_key_time[key] = t
             else:
                 if self.last_key_time[key] >= t:
-                    logger.error("[%s] Out-of-order data for '%s'. "
-                                 "Last time: %d, this time: %d" %
-                                 (self.name, key, self.last_key_time[key], t))
-                    raise ValueError
+                    err_msg = "[%s] Out-of-order data for '%s'. " \
+                              "Last time: %d, this time: %d" % \
+                              (self.name, key, self.last_key_time[key], t)
+                    if self.fatal:
+                        raise ValueError(err_msg)
+                    else:
+                        logger.error(err_msg)
                 self.last_key_time[key] = t
             yield (key, val, t)
