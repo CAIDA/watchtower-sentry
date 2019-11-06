@@ -91,6 +91,19 @@ class AggSum(SentryModule.SentryModule):
             groupkey = re.sub(rb"\([^)]*\)", part, groupkey, count=1)
         return groupkey
 
+    def _expire_oldtimes(self, ascii_exp, groupkey, groupid, max_t):
+        oldtimes = sorted([oldtime for oldtime in
+                           self.agg_by_group[ascii_exp][groupid].keys() if oldtime < max_t])
+        for oldtime in oldtimes:
+            old_agginfo = self.agg_by_group[ascii_exp][groupid][oldtime]
+            logger.debug("giving up on %r with %d/%d items",
+                         (groupid, oldtime), old_agginfo.count,
+                         self.groupsize)
+            if not self.droppartial:
+                yield (groupkey, old_agginfo.vsum, oldtime)
+            del self.agg_by_group[ascii_exp][groupid][oldtime]
+            del self.agg_by_seen[(ascii_exp, groupid, oldtime)]
+
     def run(self):
         logger.debug("AggSum.run()")
         for entry in self.gen():
@@ -149,16 +162,7 @@ class AggSum(SentryModule.SentryModule):
                 # in order to preserve timestamp order for this group's
                 # results, we would have to defer outputting this aggregate
                 # until older aggregates for this group time out.)
-                oldtimes = sorted([oldtime for oldtime in
-                    self.agg_by_group[ascii_exp][groupid].keys() if oldtime < t])
-                for oldtime in oldtimes:
-                    old_agginfo = self.agg_by_group[ascii_exp][groupid][oldtime]
-                    logger.debug("giving up on %r with %d/%d items",
-                        (groupid, oldtime), old_agginfo.count,
-                        self.groupsize)
-                    yield (groupkey, old_agginfo.vsum, oldtime)
-                    del self.agg_by_group[ascii_exp][groupid][oldtime]
-                    del self.agg_by_seen[(ascii_exp, groupid, oldtime)]
+                yield from self._expire_oldtimes(ascii_exp, groupkey, groupid, t)
 
                 yield (groupkey, agginfo.vsum, t)
                 if groupid not in self.old_keys[ascii_exp] \
@@ -176,6 +180,7 @@ class AggSum(SentryModule.SentryModule):
                 groupkey = self.groupkey(ascii_exp, groupid)
                 logger.debug("reached timeout for %r with %d/%d items",
                     aggkey, agginfo.count, self.groupsize)
+                self._expire_oldtimes(ascii_exp, groupkey, groupid, t)
                 if not self.droppartial:
                     yield (groupkey, agginfo.vsum, t)
                 if groupid not in self.old_keys[ascii_exp] \
